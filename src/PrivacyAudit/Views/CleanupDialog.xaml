@@ -1,0 +1,28 @@
+<UserControl x:Class="PrivacyAudit.CleanupDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:PrivacyAudit"
+        Background="#0B1019" Foreground="#F7F8FA">
+  <Grid Margin="24">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock Text="{local:Loc CleanupDialogTitle}" FontSize="24" FontWeight="SemiBold"/>
+    <TextBlock Grid.Row="1" Text="{local:Loc CleanupDialogIntro}" TextWrapping="Wrap" Foreground="#B9C2D1" Margin="0,8,0,18"/>
+    <StackPanel Grid.Row="2">
+      <Border Background="#241D1215" BorderBrush="#604C2730" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock Text="{local:Loc CleanupAllTitle}" FontSize="15" FontWeight="SemiBold" Foreground="#FF9A91"/>
+          <TextBlock Text="{local:Loc CleanupAllDescription}" TextWrapping="Wrap" Foreground="#D5BFC1" Margin="0,6,0,12"/>
+          <Button x:Name="btnDeleteAll" Click="DeleteAll_Click" IsEnabled="False" Padding="14,9" Background="#67303A" Foreground="White"/>
+        </StackPanel>
+      </Border>
+      <Border Background="#181A2430" BorderBrush="#403A506F" BorderThickness="1" CornerRadius="12" Padding="16">
+        <StackPanel>
+          <TextBlock Text="{local:Loc CleanupSecondaryTitle}" FontSize="15" FontWeight="SemiBold" Foreground="#8FC4FF"/>
+          <TextBlock Text="{local:Loc CleanupSecondaryDescription}" TextWrapping="Wrap" Foreground="#BFCDE0" Margin="0,6,0,12"/>
+          <Button x:Name="btnSecondary" Click="Secondary_Click" IsEnabled="False" Padding="14,9" Background="#234A72" Foreground="White"/>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+    <Button Grid.Row="3" Click="Cancel_Click" Content="{local:Loc CleanupCancel}" HorizontalAlignment="Right" MinWidth="120" Padding="14,9" Margin="0,18,0,0"/>
+  </Grid>
+</UserControl>

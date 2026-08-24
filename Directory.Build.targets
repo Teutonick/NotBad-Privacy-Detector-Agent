@@ -1,0 +1,7 @@
+<Project>
+  <ItemGroup>
+    <Compile Remove="obj\**\*.cs;bin\**\*.cs;artifacts\**\*.cs" />
+    <EmbeddedResource Remove="artifacts\**\*" />
+    <None Remove="artifacts\**\*" />
+  </ItemGroup>
+</Project>

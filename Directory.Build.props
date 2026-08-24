@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <BaseOutputPath>$(MSBuildThisFileDirectory).tmp\build\$(MSBuildProjectName)\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory).tmp\build\$(MSBuildProjectName)\obj\</BaseIntermediateOutputPath>
+    <UseSharedCompilation>false</UseSharedCompilation>
+    <!-- The desktop workspace must remain restorable when NuGet's online
+         service/audit endpoint is temporarily unavailable. Package versions
+         stay pinned in the project files and verify.ps1 still performs restore. -->
+    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+    <NuGetAudit>false</NuGetAudit>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;$(MSBuildProjectDirectory)\artifacts\**;$(MSBuildThisFileDirectory)obj\**;$(MSBuildThisFileDirectory)bin\**;$(MSBuildThisFileDirectory)artifacts\**;$(MSBuildThisFileDirectory)dist\**;$(MSBuildThisFileDirectory).tmp\**;$(MSBuildThisFileDirectory).dotnet-cli\**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="artifacts\**\*.cs" />
+    <EmbeddedResource Remove="artifacts\**\*" />
+    <None Remove="artifacts\**\*" />
+  </ItemGroup>
+</Project>

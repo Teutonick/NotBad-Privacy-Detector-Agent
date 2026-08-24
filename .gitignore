@@ -1,0 +1,46 @@
+# .NET build and test outputs
+**/bin/
+**/obj/
+**/artifacts/
+artifacts/
+dist/
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Local SDK, package, and verification state
+.dotnet*/
+.tmp/
+.nuget/
+packages/
+
+# IDE and user-specific files
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs, dumps, and local databases
+*.log
+*.dmp
+*.db
+*.db-shm
+*.db-wal
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.snk
+*.key
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
