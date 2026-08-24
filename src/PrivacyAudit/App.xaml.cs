@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 using PrivacyAudit.Core;
@@ -7,6 +8,7 @@ namespace PrivacyAudit;
 public partial class App : System.Windows.Application
 {
     static Mutex? _singleInstanceMutex;
+    ProcessStartInfo? _restartStartInfo;
     public App()
     {
         DispatcherUnhandledException += App_DispatcherUnhandledException;
@@ -48,7 +50,23 @@ public partial class App : System.Windows.Application
         try { _singleInstanceMutex?.ReleaseMutex(); } catch (ApplicationException) { }
         _singleInstanceMutex?.Dispose();
         _singleInstanceMutex = null;
+        if (_restartStartInfo is not null)
+        {
+            try { Process.Start(_restartStartInfo); } catch { }
+            _restartStartInfo = null;
+        }
         base.OnExit(e);
+    }
+
+    public void RequestRestart()
+    {
+        var executable = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executable)) return;
+
+        var startInfo = new ProcessStartInfo(executable) { UseShellExecute = true };
+        foreach (var argument in Environment.GetCommandLineArgs().Skip(1)) startInfo.ArgumentList.Add(argument);
+        _restartStartInfo = startInfo;
+        Shutdown();
     }
 
     void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

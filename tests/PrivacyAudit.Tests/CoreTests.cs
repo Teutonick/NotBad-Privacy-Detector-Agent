@@ -53,6 +53,15 @@ public sealed class CoreTests
     }
 
     [Fact]
+    public void Localization_LanguageButtonUsesCompactCodes()
+    {
+        Assert.Equal("RU", LocalizationService.GetLanguageCode(new CultureInfo("ru-RU")));
+        Assert.Equal("EN", LocalizationService.GetLanguageCode(new CultureInfo("en-US")));
+        Assert.NotEmpty(LocalizationService.Get("LanguageRestartPrompt", new CultureInfo("ru-RU")));
+        Assert.NotEmpty(LocalizationService.Get("LanguageSwitchTooltip", new CultureInfo("en-US")));
+    }
+
+    [Fact]
     public void Localization_IncludesLegendAndTooltipKeys()
     {
         var ru = new CultureInfo("ru-RU");

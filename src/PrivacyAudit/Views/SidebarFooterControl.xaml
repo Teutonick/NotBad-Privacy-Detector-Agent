@@ -98,17 +98,24 @@
         </Border>
 
         <!-- About Button (Opens sleek menu with Disclaimer, Privacy, Third-Party, GitHub) -->
+        <Grid Margin="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="4*" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
         <Button x:Name="btnAbout"
+                Grid.Column="0"
                 Content="{local:Loc AboutButton}"
                 Click="BtnAbout_Click"
                 HorizontalContentAlignment="Center"
                 FontSize="10"
-                Padding="8,5"
-                Margin="0"
+                Padding="6,5"
+                Margin="0,0,4,0"
                 Background="#08FFFFFF"
                 Foreground="#687386"
                 BorderBrush="#18FFFFFF"
-                BorderThickness="1">
+                BorderThickness="1"
+                ToolTip="{local:Loc AboutButton}">
             <Button.Template>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="bdr"
@@ -129,6 +136,39 @@
                 </ControlTemplate>
             </Button.Template>
         </Button>
+        <Button x:Name="btnLanguage"
+                Grid.Column="1"
+                Content="EN"
+                Click="BtnLanguage_Click"
+                HorizontalContentAlignment="Center"
+                FontSize="10"
+                Padding="2,5"
+                Background="#08FFFFFF"
+                Foreground="#687386"
+                BorderBrush="#18FFFFFF"
+                BorderThickness="1"
+                ToolTip="{local:Loc LanguageSwitchTooltip}">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bdrLanguage"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bdrLanguage" Property="Background" Value="#15FFFFFF" />
+                            <Setter TargetName="bdrLanguage" Property="BorderBrush" Value="#2E3D56" />
+                            <Setter Property="Foreground" Value="#A0ADC2" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Button.Template>
+        </Button>
+        </Grid>
         <Button x:Name="btnCleanup"
                 Content="{local:Loc CleanupButton}"
                 Click="BtnCleanup_Click"

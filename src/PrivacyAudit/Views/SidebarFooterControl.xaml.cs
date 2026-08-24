@@ -34,6 +34,7 @@ public partial class SidebarFooterControl : UserControl
         BusyChanged += OnGlobalBusyChanged;
         UpdateAuthorPromoUI();
         UpdateRecommendationUI();
+        UpdateLanguageUI();
         StartPromoTimer();
     }
 
@@ -84,6 +85,12 @@ public partial class SidebarFooterControl : UserControl
     void UpdateRecommendationUI()
     {
         lblRecommendationText.Text = LocalizationService.Get($"Recommendation{_currentRecommendationIndex + 1}");
+    }
+
+    void UpdateLanguageUI()
+    {
+        btnLanguage.Content = LocalizationService.CurrentLanguageCode;
+        btnLanguage.ToolTip = LocalizationService.Get("LanguageSwitchTooltip");
     }
 
     public void UpdateAuthorPromoUI()
@@ -173,6 +180,28 @@ public partial class SidebarFooterControl : UserControl
         menu.Items.Add(itemGitHub);
 
         menu.IsOpen = true;
+    }
+
+    void BtnLanguage_Click(object sender, RoutedEventArgs e)
+    {
+        var nextLanguage = LocalizationService.CurrentLanguageCode == "RU" ? "EN" : "RU";
+        var prompt = string.Format(LocalizationService.Get("LanguageRestartPrompt"), nextLanguage);
+        if (System.Windows.MessageBox.Show(
+                prompt,
+                LocalizationService.Get("AppTitle"),
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Question,
+                System.Windows.MessageBoxResult.No) != System.Windows.MessageBoxResult.Yes) return;
+
+        if (!LocalizationService.SetLanguage(nextLanguage)) return;
+        if (System.Windows.Application.Current is App app)
+        {
+            app.RequestRestart();
+        }
+        else
+        {
+            System.Windows.MessageBox.Show(LocalizationService.Get("LanguageRestartFailed"), LocalizationService.Get("AppTitle"), System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+        }
     }
 
     void BtnCleanup_Click(object sender, RoutedEventArgs e)

@@ -1,10 +1,56 @@
 using System.Globalization;
+using System.IO;
 using System.Windows.Markup;
 
 namespace PrivacyAudit;
 
 public static class LocalizationService
 {
+    static readonly string LanguagePreferencePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "NotBadPrivacyDetectorAgent",
+        "ui-language.txt");
+    static CultureInfo _currentCulture = LoadInitialCulture();
+
+    public static string CurrentLanguageCode => IsRussian(_currentCulture) ? "RU" : "EN";
+
+    public static string GetLanguageCode(CultureInfo? culture = null) => IsRussian(culture ?? _currentCulture) ? "RU" : "EN";
+
+    static CultureInfo LoadInitialCulture()
+    {
+        try
+        {
+            if (File.Exists(LanguagePreferencePath))
+            {
+                var saved = File.ReadAllText(LanguagePreferencePath).Trim();
+                if (saved.Equals("ru", StringComparison.OrdinalIgnoreCase)) return new CultureInfo("ru-RU");
+                if (saved.Equals("en", StringComparison.OrdinalIgnoreCase)) return new CultureInfo("en-US");
+            }
+        }
+        catch { }
+
+        return IsRussian(CultureInfo.CurrentUICulture) ? new CultureInfo("ru-RU") : new CultureInfo("en-US");
+    }
+
+    public static bool SetLanguage(string languageCode)
+    {
+        var isRussian = languageCode.Equals("ru", StringComparison.OrdinalIgnoreCase);
+        var isEnglish = languageCode.Equals("en", StringComparison.OrdinalIgnoreCase);
+        if (!isRussian && !isEnglish) return false;
+
+        var culture = new CultureInfo(isRussian ? "ru-RU" : "en-US");
+        _currentCulture = culture;
+        CultureInfo.CurrentUICulture = culture;
+        CultureInfo.CurrentCulture = culture;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(LanguagePreferencePath)!);
+            File.WriteAllText(LanguagePreferencePath, isRussian ? "ru" : "en");
+        }
+        catch { }
+        return true;
+    }
+
     static readonly IReadOnlyDictionary<string, string> En = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["UserExplanationPrompt"] = "DESCRIBE IN YOUR OWN WORDS WHAT EXACTLY IS WRONG WITH THIS FINDING.", ["UserExplanationTooltip"] = "Use 10–1000 characters to explain what the detector got wrong, what you expected to see, or what evidence is missing.", ["UserExplanationLengthError"] = "The description must contain between 10 and 1000 characters.", ["ApplicationHistoryFiltersLegend"] = "Filters: availability shows whether the target exists now; menu state shows whether it was intentionally pinned in the app; audit result shows whether this path matches a finding; size and age apply only to existing files or folders; search finds an application or path. Sort by AI priority ranks remembered objects and applications using your local ratings. Rate each object with thumbs up or down; the application score is the average of its three strongest object recommendations, not a rating of the application itself. The default audit-result filter keeps the first view focused on items worth checking.", ["ApplicationHistoryPathCopied"] = "Path copied to clipboard.", ["ApplicationHistoryClipboardBusy"] = "Windows clipboard is busy. Close the other clipboard operation and try again.",
@@ -59,7 +105,7 @@ public static class LocalizationService
         ["Recommendation1"] = "The larger the audit scope, the more time and resources the process needs.", ["Recommendation2"] = "For deep analysis of a category, choose specific folders instead of an entire drive.", ["Recommendation3"] = "Deep-investigation actions are resource-intensive. Use them carefully and on a limited set of files.", ["Recommendation4"] = "Audit results are saved locally, so you can close the app and return later.", ["Recommendation5"] = "Every AI feature uses only local models. Your data is not collected for global training.", ["Recommendation6"] = "You can send a suggestion or an anonymized error report through the project's GitHub Issues.",
         ["AuthorProjectsTitle"] = "Also from author", ["AuthorProjectsTooltip"] = "Click to open project in browser",
         ["IncorrectDetectionQuestion"] = "Found an inaccuracy?", ["IncorrectDetectionIntro"] = "PrivacyAudit can prepare a technical report that may help improve detection.", ["ReportNoContents"] = "The report will NOT include file contents.", ["UserCorrection"] = "What seems incorrect?", ["UserCorrectionTooltip"] = "Choose the closest kind of inaccuracy to add to the anonymized report.", ["CorrectionWrongFinding"] = "Wrong finding", ["CorrectionWrongOrigin"] = "Wrong file origin", ["CorrectionWrongRisk"] = "Wrong risk level", ["CorrectionOther"] = "Other inaccuracy", ["PrepareReport"] = "Prepare report", ["PrepareReportTooltip"] = "Builds an anonymized preview locally; nothing is uploaded.", ["ReportPreviewDescription"] = "Review every field before opening GitHub. The preview is generated locally.", ["GithubPublicWarning"] = "The GitHub Issue will be public. Review the report before publishing. PrivacyAudit does not upload anything automatically.", ["OpenGithubReport"] = "Open GitHub and report", ["OpenGithubReportTooltip"] = "Opens a pre-filled public GitHub Issue. You still make the final publication step.", ["CancelReportTooltip"] = "Closes the preview without opening GitHub.", ["ReportIncorrectDetection"] = "Anonymized report for GitHub", ["ReportIncorrectDetectionTooltip"] = "Prepares a local privacy-safe preview for reporting this detection. Nothing is sent automatically.",
-        ["AboutButton"] = "ℹ About", ["AboutClose"] = "✕ Close", ["AboutTitle"] = "About",
+        ["AboutButton"] = "ℹ About", ["AboutClose"] = "✕ Close", ["AboutTitle"] = "About", ["LanguageSwitchTooltip"] = "Switch the interface language. The application will restart after confirmation.", ["LanguageRestartPrompt"] = "Switch the interface to {0}? The application will restart to apply the new language.", ["LanguageRestartFailed"] = "The language was saved, but the application could not restart automatically. Please restart it manually.",
         ["AboutLegalTitle"] = "Legal & Disclaimer", ["AboutLegalSub"] = "Terms & limits",
         ["AboutPrivacyTitle"] = "Privacy Policy", ["AboutPrivacySub"] = "Local only, no network",
         ["AboutThirdPartyTitle"] = "Third-Party Licenses", ["AboutThirdPartySub"] = "Open source notices",
@@ -215,7 +261,7 @@ public static class LocalizationService
         ["Recommendation1"] = "Чем больше область аудита, тем сложнее и дольше будет идти процесс.", ["Recommendation2"] = "Для углублённой аналитики конкретных категорий выбирай конкретные папки, а не весь диск.", ["Recommendation3"] = "Углублённые исследования находок очень ресурсоёмкие. Используй их осмотрительно и для небольшого набора файлов.", ["Recommendation4"] = "Результат аудита сохраняется локально: ты можешь закрыть приложение и вернуться к нему позже.", ["Recommendation5"] = "Все ИИ-функции используют только локальные модели. Твои данные не собираются для глобального обучения.", ["Recommendation6"] = "Ты всегда можешь отправить предложение или обезличенный отчёт об ошибке через GitHub Issues проекта.",
         ["AuthorProjectsTitle"] = "Также от автора", ["AuthorProjectsTooltip"] = "Нажми, чтобы открыть проект в браузере",
         ["IncorrectDetectionQuestion"] = "Нашли неточность?", ["IncorrectDetectionIntro"] = "PrivacyAudit может подготовить технический отчёт, который поможет улучшить определение.", ["ReportNoContents"] = "В отчёт НЕ попадёт содержимое файла.", ["UserCorrection"] = "Что определено неверно?", ["UserCorrectionTooltip"] = "Выбери наиболее подходящий вид неточности для обезличенного отчёта.", ["CorrectionWrongFinding"] = "Неверная находка", ["CorrectionWrongOrigin"] = "Неверное происхождение файла", ["CorrectionWrongRisk"] = "Неверный уровень риска", ["CorrectionOther"] = "Другая неточность", ["PrepareReport"] = "Подготовить отчёт", ["PrepareReportTooltip"] = "Локально создаёт обезличенный предпросмотр; ничего не загружает.", ["ReportPreviewDescription"] = "Проверь каждое поле перед открытием GitHub. Предпросмотр подготовлен локально.", ["GithubPublicWarning"] = "GitHub Issue будет публичным. Перед публикацией проверь отчёт. PrivacyAudit ничего не загружает автоматически.", ["OpenGithubReport"] = "Открыть GitHub и сообщить", ["OpenGithubReportTooltip"] = "Открывает предзаполненный публичный GitHub Issue. Последний шаг публикации всегда делаешь ты.", ["CancelReportTooltip"] = "Закрывает предпросмотр, не открывая GitHub.", ["ReportIncorrectDetection"] = "Обезличенный отчёт для GitHub", ["ReportIncorrectDetectionTooltip"] = "Локально готовит безопасный предпросмотр отчёта об этой находке. Ничего не отправляет автоматически.",
-        ["AboutButton"] = "ℹ О программе", ["AboutClose"] = "✕ Скрыть", ["AboutTitle"] = "О программе",
+        ["AboutButton"] = "ℹ О программе", ["AboutClose"] = "✕ Скрыть", ["AboutTitle"] = "О программе", ["LanguageSwitchTooltip"] = "Переключить язык интерфейса. После подтверждения приложение перезапустится.", ["LanguageRestartPrompt"] = "Переключить интерфейс на {0}? Для применения языка приложение перезапустится.", ["LanguageRestartFailed"] = "Язык сохранён, но приложение не удалось перезапустить автоматически. Перезапусти его вручную.",
         ["AboutLegalTitle"] = "Отказ от ответственности", ["AboutLegalSub"] = "Условия и ограничения",
         ["AboutPrivacyTitle"] = "Конфиденциальность", ["AboutPrivacySub"] = "Локальный режим, без сети",
         ["AboutThirdPartyTitle"] = "Сторонние компоненты", ["AboutThirdPartySub"] = "Открытые лицензии",
@@ -317,7 +363,7 @@ public static class LocalizationService
         ["OpenFileHelp"] = "Открыть этот файл в стандартной программе Windows."
     };
 
-    public static bool IsRussian(CultureInfo? culture = null) => (culture ?? CultureInfo.CurrentUICulture).TwoLetterISOLanguageName.Equals("ru", StringComparison.OrdinalIgnoreCase);
+    public static bool IsRussian(CultureInfo? culture = null) => (culture ?? _currentCulture).TwoLetterISOLanguageName.Equals("ru", StringComparison.OrdinalIgnoreCase);
     public static string Get(string key, CultureInfo? culture = null)
     {
         var selected = IsRussian(culture) ? Ru : En;
