@@ -83,6 +83,28 @@ Telegram: @ivan_tech, link: https://t.me/ivan_tech";
     }
 
     [Fact]
+    public void PiiScan_DoesNotTreatStandaloneDatesAsBirthDates()
+    {
+        var result = PiiDetector.Scan("Релизы: 20.04.2026, 21.01.2026. План работ до 01.02.2026.");
+
+        Assert.DoesNotContain("BirthDate", result.Categories);
+        Assert.DoesNotContain(result.Matches, x => x.Category == "BirthDate");
+        Assert.Equal(0, result.TotalMatches);
+    }
+
+    [Fact]
+    public void PiiResult_LegacyBirthDatesAreRemovedWhenMetadataIsRead()
+    {
+        const string metadata = """{"pii_scan":{"status":"completed","total_matches":2,"categories":["BirthDate","Email"],"matches":[{"category":"BirthDate","sample":"20.04.2026","confidence":0.75},{"category":"Email","sample":"user@example.com","confidence":0.95}]}}""";
+
+        Assert.True(PiiDetectionResult.TryParse(metadata, out var result));
+        Assert.Equal(1, result!.TotalMatches);
+        Assert.DoesNotContain("BirthDate", result.Categories);
+        Assert.DoesNotContain(result.Matches, x => x.Category == "BirthDate");
+        Assert.Contains(result.Matches, x => x.Category == "Email");
+    }
+
+    [Fact]
     public void PiiScan_EmptyOrNull_ReturnsEmptyResult()
     {
         var res1 = PiiDetector.Scan("");

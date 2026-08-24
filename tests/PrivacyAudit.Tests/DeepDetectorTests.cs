@@ -89,6 +89,42 @@ public sealed class DeepDetectorTests
     }
 
     [Fact]
+    public void IdentityTraceDetector_DoesNotReadEmbeddedProfilePathsFromBinaryFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"idt_binary_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var profile = new UserIdentityProfile();
+            profile.TermsToCategory["Никита"] = "Windows Account";
+            var binaryFile = Path.Combine(tempDir, "config.cpython-312.pyc");
+            File.WriteAllBytes(binaryFile, Encoding.UTF8.GetBytes(@"binary-prefix C:\Users\Никита\Documents\project\config.py binary-suffix"));
+
+            var result = IdentityTraceDetector.Analyze(binaryFile, profile);
+
+            Assert.False(result.HasIdentityTrace);
+            Assert.Equal(0, result.TotalMentions);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void IdentityTraceResult_LegacyProfileDirectorySignalIsRemovedWhenMetadataIsRead()
+    {
+        const string metadata = """{"identity_trace":{"has_identity_trace":true,"total_mentions":3,"matched_terms":{"Никита":"User Profile Directory (1x)","user@example.com":"Git Email (2x)"},"summary":"legacy"}}""";
+
+        Assert.True(IdentityTraceResult.TryParse(metadata, out var result));
+        Assert.True(result!.HasIdentityTrace);
+        Assert.Equal(2, result.TotalMentions);
+        Assert.DoesNotContain("Никита", result.MatchedTerms.Keys);
+        Assert.Contains("user@example.com", result.MatchedTerms.Keys);
+    }
+
+    [Fact]
     public void ArchiveInspector_InspectsZipContentsInMemoryWithoutDiskExtraction()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"arch_test_{Guid.NewGuid():N}");

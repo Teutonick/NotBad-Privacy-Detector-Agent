@@ -1466,14 +1466,11 @@ public partial class MainWindow : Window
                     try
                     {
                         var text = TextExtractor.ExtractText(finding.Path);
-                        if (!string.IsNullOrWhiteSpace(text))
+                        var scan = string.IsNullOrWhiteSpace(text) ? new PiiDetectionResult() : PiiDetector.Scan(text);
+                        finding.MetadataJson = PiiDetectionResult.InjectIntoMetadata(finding.MetadataJson, scan);
+                        if (scan.TotalMatches > 0)
                         {
-                            var scan = PiiDetector.Scan(text);
-                            if (scan.TotalMatches > 0)
-                            {
-                                finding.MetadataJson = PiiDetectionResult.InjectIntoMetadata(finding.MetadataJson, scan);
-                                Interlocked.Increment(ref foundCount);
-                            }
+                            Interlocked.Increment(ref foundCount);
                         }
                     }
                     catch (Exception ex)
@@ -1743,9 +1740,9 @@ public partial class MainWindow : Window
                     try
                     {
                         var scan = IdentityTraceDetector.Analyze(finding.Path, profile);
+                        finding.MetadataJson = IdentityTraceResult.InjectIntoMetadata(finding.MetadataJson, scan);
                         if (scan.HasIdentityTrace)
                         {
-                            finding.MetadataJson = IdentityTraceResult.InjectIntoMetadata(finding.MetadataJson, scan);
                             Interlocked.Increment(ref foundCount);
                             Interlocked.Add(ref totalMentions, scan.TotalMentions);
                         }

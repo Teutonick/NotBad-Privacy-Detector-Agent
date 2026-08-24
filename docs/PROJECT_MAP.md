@@ -17,7 +17,7 @@ When a feature changes, update its low-level canonical document first and add or
 
 ## Anonymous incorrect-detection reports
 
-The Details page exposes an **Anonymized report for GitHub** action for every `Finding`, including files, directories, text findings, and media. `IncorrectDetectionDialog` explains the local-only flow and requires a preview before opening a pre-filled public GitHub Issue. `src/PrivacyAudit/Core/DiagnosticReportBuilder.cs` replaces paths with shapes, buckets size and score, allows only categorical identifiers, and never consumes raw scanner `MetadataJson`.
+The Details page exposes an **Anonymized report for GitHub** action for every `Finding`, including files, directories, text findings, and media. `IncorrectDetectionDialog` explains the local-only flow, validates a required 10–1000 character author explanation, and shows that exact text at the top of the mandatory preview before opening a pre-filled public GitHub Issue. `src/PrivacyAudit/Core/DiagnosticReportBuilder.cs` replaces paths with shapes, buckets size and score, allows only categorical identifiers, and never consumes raw scanner `MetadataJson`.
 
 The sidebar footer also contains a purple rotating Recommendations card, driven by the existing inactive-window-aware rotation timer.
 
@@ -41,10 +41,10 @@ PrivacyAudit.sln
 │   ├── ObservableRangeCollection.cs batch UI notifications
 │   ├── ScanCoordinator.cs         isolated scanner execution
 │   ├── TextExtractor.cs           plain text, code, and DOCX/XLSX/PPTX text extractor
-│   ├── PiiDetector.cs             Luhn and issuer-aware card checks, INN, SNILS, Email, strict single-line Phone, Passport, Address, explicit Telegram links, FIO
+│   ├── PiiDetector.cs             Luhn and issuer-aware card checks, INN, SNILS, Email, strict single-line Phone, Passport, Address, explicit Telegram links, FIO; standalone dates ignored
 │   ├── SecretDetector.cs          known token formats, explicit key assignments, private keys, DB URIs, strict mixed-case ASCII entropy candidates
 │   ├── CredentialConfigDetector.cs .env, npmrc, pip, NuGet, gradle, maven, docker-compose, kubeconfig, ssh, db configs
-│   ├── IdentityTraceDetector.cs   Windows account, hostname, domain, profile dir, Git user/email digital archaeology
+│   ├── IdentityTraceDetector.cs   Windows account, hostname, Git user/email detection in filenames and supported text/document contents; binary embedded paths ignored
 │   ├── ArchiveInspector.cs        in-memory ZIP/JAR/NUPKG archive structure inspection & privacy scoring
 │   ├── ExifMetadataExtractor.cs   GPS decimal coordinates, camera make/model/serial, software, author, last saved by
 │   └── DocumentSimilarity.cs      TF-IDF vectorizer + Cosine similarity matching for text & Office documents

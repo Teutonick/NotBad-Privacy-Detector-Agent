@@ -29,11 +29,13 @@ public partial class IncorrectDetectionDialog : UserControl
             _ => "Other inaccuracy"
         };
         var explanation = UserExplanationBox.Text.Trim();
-        if (explanation.Length == 0)
+        if (explanation.Length is < DiagnosticReportBuilder.MinUserExplanationLength or > DiagnosticReportBuilder.MaxUserExplanationLength)
         {
+            UserExplanationValidationText.Visibility = Visibility.Visible;
             UserExplanationBox.Focus();
             return;
         }
+        UserExplanationValidationText.Visibility = Visibility.Collapsed;
         _report = DiagnosticReportBuilder.Build(_finding, correction, userExplanation: explanation);
         PreviewText.Text = BuildPreview(_report);
         IntroPanel.Visibility = Visibility.Collapsed;

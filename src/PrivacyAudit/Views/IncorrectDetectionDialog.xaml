@@ -10,7 +10,8 @@
         <TextBlock Text="{local:Loc ReportNoContents}" Foreground="#C6A8E8" FontWeight="SemiBold"/>
       </Border>
       <TextBlock Text="{local:Loc UserExplanationPrompt}" FontSize="16" FontWeight="Bold" Foreground="#FFD27A" TextWrapping="Wrap" Margin="0,0,0,6"/>
-      <TextBox x:Name="UserExplanationBox" MinHeight="82" MaxHeight="150" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" ToolTip="{local:Loc UserExplanationTooltip}" Padding="9"/>
+      <TextBox x:Name="UserExplanationBox" MinHeight="82" MaxHeight="150" MaxLength="1000" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" ToolTip="{local:Loc UserExplanationTooltip}" Padding="9"/>
+      <TextBlock x:Name="UserExplanationValidationText" Text="{local:Loc UserExplanationLengthError}" Foreground="#FF6961" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,5,0,0"/>
       <TextBlock Text="{local:Loc UserCorrection}" Margin="0,0,0,5"/>
       <ComboBox x:Name="CorrectionBox" SelectedIndex="0" ToolTip="{local:Loc UserCorrectionTooltip}">
         <ComboBoxItem Content="{local:Loc CorrectionWrongFinding}"/>

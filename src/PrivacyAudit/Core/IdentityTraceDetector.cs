@@ -22,6 +22,17 @@ public sealed class IdentityTraceResult
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("identity_trace", out var prop)) return false;
             result = JsonSerializer.Deserialize<IdentityTraceResult>(prop.GetRawText());
+            if (result is not null)
+            {
+                var legacyProfileTerms = result.MatchedTerms.Where(x => x.Value.StartsWith("User Profile Directory", StringComparison.OrdinalIgnoreCase)).Select(x => x.Key).ToArray();
+                foreach (var term in legacyProfileTerms) result.MatchedTerms.Remove(term);
+                if (legacyProfileTerms.Length > 0)
+                {
+                    result.TotalMentions = result.MatchedTerms.Values.Sum(MentionCount);
+                    result.HasIdentityTrace = result.TotalMentions > 0;
+                    result.Summary = result.HasIdentityTrace ? string.Join(", ", result.MatchedTerms.Select(kv => $"{kv.Value}: {kv.Key}")) : "";
+                }
+            }
             return result is not null;
         }
         catch
@@ -44,6 +55,12 @@ public sealed class IdentityTraceResult
         {
             return JsonSerializer.Serialize(new { identity_trace = result });
         }
+    }
+
+    static int MentionCount(string value)
+    {
+        var match = Regex.Match(value, @"\((\d+)x\)$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+        return match.Success && int.TryParse(match.Groups[1].Value, out var count) ? count : 1;
     }
 }
 
@@ -84,10 +101,6 @@ public sealed class UserIdentityProfile
             AddTerm(Environment.MachineName, "Hostname / PC Name");
 
             var userProfileDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (!string.IsNullOrWhiteSpace(userProfileDir))
-            {
-                AddTerm(Path.GetFileName(userProfileDir), "User Profile Directory");
-            }
 
             // Read ~/.gitconfig
             var gitConfigPath = Path.Combine(userProfileDir, ".gitconfig");
@@ -129,7 +142,7 @@ public static class IdentityTraceDetector
         if (string.IsNullOrWhiteSpace(filePath) || profile.TermsToCategory.Count == 0) return result;
 
         var text = textContent;
-        if (text is null && File.Exists(filePath))
+        if (text is null && File.Exists(filePath) && TextExtractor.IsSupported(filePath))
         {
             try
             {

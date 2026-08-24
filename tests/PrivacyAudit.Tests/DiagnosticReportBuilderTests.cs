@@ -14,7 +14,7 @@ public sealed class DiagnosticReportBuilderTests
             Category = "File Provenance", Subcategory = "LIBRARY_DEPENDENCY", ExposureScore = 67,
             MetadataJson = "{\"password\":\"do-not-leak\",\"gps\":\"55.1,37.2\"}"
         };
-        var report = DiagnosticReportBuilder.Build(finding, "Wrong finding", "1.4.2", "Microsoft Windows 10.0.26100");
+        var report = DiagnosticReportBuilder.Build(finding, "Wrong finding", "1.4.2", "Microsoft Windows 10.0.26100", "This finding is not sensitive.");
         Assert.Equal("USERPROFILE / directory / directory / directory / directory / directory / file.db", report.PathShape);
         Assert.Equal("1–10 MB", report.SizeRange);
         foreach (var sensitive in new[] { "Nikita", "SuperSecret", "ClientName", "do-not-leak", "55.1" })
@@ -31,11 +31,30 @@ public sealed class DiagnosticReportBuilderTests
 
         var report = DiagnosticReportBuilder.Build(finding, "Wrong finding", userExplanation: "It is a harmless readme.");
 
-        Assert.StartsWith("ОПИШИТЕ СЛОВАМИ", report.Body, StringComparison.Ordinal);
+        Assert.StartsWith("## User description", report.Body, StringComparison.Ordinal);
         Assert.Contains("It is a harmless readme.", report.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("ОПИШИТЕ СЛОВАМИ", report.Body, StringComparison.Ordinal);
         Assert.Contains("incorrect-detection", report.Labels);
         Assert.Contains("privacy-audit", report.Labels);
         Assert.Contains("wrong-finding", report.Labels);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("short")]
+    public void Build_RejectsExplanationShorterThanTenCharacters(string explanation)
+    {
+        var finding = new Finding { Path = @"C:\file.txt", Category = "Text", ScannerId = "test" };
+
+        Assert.Throws<ArgumentException>(() => DiagnosticReportBuilder.Build(finding, "Wrong finding", userExplanation: explanation));
+    }
+
+    [Fact]
+    public void Build_RejectsExplanationLongerThanOneThousandCharacters()
+    {
+        var finding = new Finding { Path = @"C:\file.txt", Category = "Text", ScannerId = "test" };
+
+        Assert.Throws<ArgumentException>(() => DiagnosticReportBuilder.Build(finding, "Wrong finding", userExplanation: new string('x', 1001)));
     }
 
     [Theory]

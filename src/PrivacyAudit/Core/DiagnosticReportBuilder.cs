@@ -10,9 +10,15 @@ public sealed record DiagnosticIssueReport(string Title, string Body, string Pat
 
 public static class DiagnosticReportBuilder
 {
+    public const int MinUserExplanationLength = 10;
+    public const int MaxUserExplanationLength = 1000;
+
     public static DiagnosticIssueReport Build(Finding finding, string correction, string? applicationVersion = null, string? windowsVersion = null, string? userExplanation = null)
     {
         ArgumentNullException.ThrowIfNull(finding);
+        var explanation = userExplanation?.Trim() ?? "";
+        if (explanation.Length is < MinUserExplanationLength or > MaxUserExplanationLength)
+            throw new ArgumentException($"User explanation must contain between {MinUserExplanationLength} and {MaxUserExplanationLength} characters.", nameof(userExplanation));
         var extension = finding.IsDirectory ? "[directory]" : NormalizeExtension(Path.GetExtension(finding.Path));
         var pathShape = BuildPathShape(finding.Path, finding.IsDirectory);
         var sizeRange = finding.IsDirectory ? "not applicable" : BucketSize(finding.SizeBytes);
@@ -22,7 +28,6 @@ public static class DiagnosticReportBuilder
         var scanner = NormalizeLabel(finding.ScannerId, "unknown");
         var category = NormalizeLabel(finding.Category, "Other");
         var subcategory = NormalizeLabel(finding.Subcategory, "none");
-        var explanation = string.IsNullOrWhiteSpace(userExplanation) ? "[not provided]" : userExplanation.Trim()[..Math.Min(userExplanation.Trim().Length, 4000)];
         var correctionLabel = correction switch
         {
             "Wrong finding" => "wrong-finding",
@@ -32,8 +37,9 @@ public static class DiagnosticReportBuilder
         };
 
         var body = new StringBuilder()
-            .AppendLine("ОПИШИТЕ СЛОВАМИ, ЧТО КОНКРЕТНО НЕ ТАК С НАХОДКОЙ.")
-            .AppendLine("Это описание нужно, чтобы команда поняла причину ошибки, а не только её категорию.")
+            .AppendLine("## User description")
+            .AppendLine()
+            .AppendLine(explanation)
             .AppendLine()
             .AppendLine("## Anonymized incorrect-detection report")
             .AppendLine()
@@ -41,7 +47,6 @@ public static class DiagnosticReportBuilder
             .AppendLine($"- Finding type: `{category}`")
             .AppendLine($"- Detected: `{category} / {subcategory}`")
             .AppendLine($"- User correction: `{safeCorrection}`")
-            .AppendLine($"- User description: {explanation}")
             .AppendLine($"- Path shape: `{pathShape}`")
             .AppendLine($"- Filename extension: `{extension}`")
             .AppendLine($"- Size range: `{sizeRange}`")

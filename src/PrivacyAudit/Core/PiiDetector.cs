@@ -29,6 +29,12 @@ public sealed class PiiDetectionResult
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("pii_scan", out var piiProp)) return false;
             result = JsonSerializer.Deserialize<PiiDetectionResult>(piiProp.GetRawText());
+            if (result is not null)
+            {
+                result.Matches.RemoveAll(x => x.Category.Equals("BirthDate", StringComparison.OrdinalIgnoreCase));
+                result.Categories.RemoveAll(x => x.Equals("BirthDate", StringComparison.OrdinalIgnoreCase));
+                result.TotalMatches = result.Matches.Count;
+            }
             return result is not null;
         }
         catch
@@ -75,7 +81,6 @@ public static class PiiDetector
     // A naked @name is ambiguous in source code and prose. Only an explicit Telegram URL
     // is treated as a Telegram identifier; email detection remains independent.
     static readonly Regex TelegramRegex = new(@"https?:\/\/(?:www\.)?t\.me\/[a-zA-Z0-9_]{5,32}(?![a-zA-Z0-9_])", RegexOptions.Compiled | RegexOptions.IgnoreCase, RegexTimeout);
-    static readonly Regex BirthDateRegex = new(@"\b(?:0[1-9]|[12][0-9]|3[01])\.(?:0[1-9]|1[0-2])\.(?:19\d{2}|20[0-2]\d)\b", RegexOptions.Compiled, RegexTimeout);
     static readonly Regex FioRegex = new(@"\b[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+(?:ович|евич|ич|овна|евна|ична|инична)\b", RegexOptions.Compiled, RegexTimeout);
     static readonly Regex AddressRegex = new(@"(?i)\b(?:г\.|город|обл\.|область|ул\.|улица|пр-т|проспект|пер\.|переулок|д\.|дом|кв\.|квартира)\s+[А-ЯЁа-яё0-9\s.,\-/]{4,40}\b", RegexOptions.Compiled, RegexTimeout);
 
@@ -240,18 +245,8 @@ public static class PiiDetector
             }
             catch { }
 
-            // 10. Birth Dates & Addresses
-            try
-            {
-                foreach (Match m in BirthDateRegex.Matches(text))
-                {
-                    matches.Add(new PiiMatchItem("BirthDate", m.Value, 0.75));
-                    foundCategories.Add("BirthDate");
-                    if (matches.Count >= 50) break;
-                }
-            }
-            catch { }
-
+            // 10. Addresses. Standalone dates are intentionally ignored because a date
+            // without identity context is usually document metadata, a deadline, or a release date.
             try
             {
                 foreach (Match m in AddressRegex.Matches(text))
