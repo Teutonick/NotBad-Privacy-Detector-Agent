@@ -36,6 +36,11 @@ NotBad Privacy Detector Agent собирает эти следы вместе, �
 <p align="center"><em>Находки: изучай персональные данные и возможные секреты с риском, основаниями, фильтрами и локальным ИИ-приоритетом.</em></p>
 
 <p align="center">
+  <img src="docs/assets/readme-object-details.png" alt="Детали файла, происхождение и похожие копии в NotBad Privacy Detector Agent" width="960">
+</p>
+<p align="center"><em>Детали объекта: изучай основания результата аудита, происхождение файла и похожие копии, не открывая его содержимое.</em></p>
+
+<p align="center">
   <img src="docs/assets/readme-media-people-search.png" alt="Поиск людей в NotBad Privacy Detector Agent" width="960">
 </p>
 <p align="center"><em>Поиск людей: находи лица на изображениях с помощью модели, которая работает локально на твоём компьютере.</em></p>

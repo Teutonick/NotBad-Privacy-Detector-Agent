@@ -36,6 +36,11 @@ NotBad Privacy Detector Agent brings those traces together, explains the risk an
 <p align="center"><em>Findings: review personal data and potential secrets with risk, evidence, filters and local AI priority.</em></p>
 
 <p align="center">
+  <img src="docs/assets/readme-object-details.png" alt="NotBad Privacy Detector Agent object details, provenance and similar copies" width="960">
+</p>
+<p align="center"><em>Object details: inspect the audit evidence, investigate a file's provenance and find similar copies without opening its contents.</em></p>
+
+<p align="center">
   <img src="docs/assets/readme-media-people-search.png" alt="NotBad Privacy Detector Agent people search" width="960">
 </p>
 <p align="center"><em>People search: detect faces in found images using a model that runs locally on your computer.</em></p>
