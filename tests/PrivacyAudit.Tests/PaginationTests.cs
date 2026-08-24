@@ -53,4 +53,18 @@ public sealed class PaginationTests
     {
         Assert.Equal(6, FindingPagination.LoadedPageWindow);
     }
+
+    [Theory]
+    [InlineData(1200, 40, 40, 5000, 1200)]
+    [InlineData(1200, 40, 340, 5000, 1500)]
+    [InlineData(1200, 340, 40, 5000, 900)]
+    [InlineData(100, 0, -500, 5000, 0)]
+    [InlineData(4900, 0, 500, 5000, 5000)]
+    public void RestoreViewportOffset_KeepsAnchorAtSameScreenPosition(
+        double originalOffset,
+        double originalItemTop,
+        double currentItemTop,
+        double scrollableHeight,
+        double expected) =>
+        Assert.Equal(expected, FindingPagination.RestoreViewportOffset(originalOffset, originalItemTop, currentItemTop, scrollableHeight));
 }

@@ -64,6 +64,7 @@ public partial class MainWindow : Window
     int _firstLoadedMediaPage;
     int _lastLoadedMediaPage;
     bool _loadingMediaBatch;
+    bool _restoringMediaViewport;
     int _completedPeopleResults;
     string _sortProperty = nameof(Finding.ExposureScore);
     bool _sortDescending = true;
@@ -177,6 +178,11 @@ public partial class MainWindow : Window
     public MainWindow(bool suppressRestorePrompt = false)
     {
         InitializeComponent();
+        InputManager.Current.PreProcessInput += InputManager_PreProcessInput;
+        CommandBindings.Add(new CommandBinding(
+            NavigationCommands.BrowseBack,
+            (_, e) => { if (TryReturnFromDetails()) e.Handled = true; },
+            (_, e) => { e.CanExecute = CanReturnFromDetails; e.Handled = true; }));
         var findingsRowStyle = new Style(typeof(DataGridRow));
         findingsRowStyle.Setters.Add(new Setter(System.Windows.Controls.Control.FocusVisualStyleProperty, null));
         findingsRowStyle.Setters.Add(new Setter(System.Windows.Controls.Control.BorderThicknessProperty, new Thickness(0)));
@@ -253,13 +259,44 @@ public partial class MainWindow : Window
 
     void MainWindow_Closed(object? sender, EventArgs e)
     {
+        InputManager.Current.PreProcessInput -= InputManager_PreProcessInput;
         _windowSource?.RemoveHook(WindowMessageHook);
         _windowSource = null;
     }
 
+    bool CanReturnFromDetails => IsActive && TabDetails.IsSelected && _detailsReturnState is not null;
+
+    bool TryReturnFromDetails()
+    {
+        if (!CanReturnFromDetails) return false;
+        ReturnFromDetails();
+        return true;
+    }
+
+    void InputManager_PreProcessInput(object sender, PreProcessInputEventArgs e)
+    {
+        if (!CanReturnFromDetails) return;
+        if (e.StagingItem.Input is MouseButtonEventArgs mouse
+            && mouse.ButtonState == MouseButtonState.Pressed
+            && mouse.ChangedButton is MouseButton.XButton1 or MouseButton.XButton2)
+        {
+            mouse.Handled = true;
+            TryReturnFromDetails();
+            return;
+        }
+        if (e.StagingItem.Input is System.Windows.Input.KeyEventArgs key
+            && key.IsDown
+            && (key.Key == System.Windows.Input.Key.BrowserBack
+                || (key.Key == System.Windows.Input.Key.Left && Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))))
+        {
+            key.Handled = true;
+            TryReturnFromDetails();
+        }
+    }
+
     IntPtr WindowMessageHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (!TabDetails.IsSelected || _detailsReturnState is null) return IntPtr.Zero;
+        if (!CanReturnFromDetails) return IntPtr.Zero;
 
         var xButton = (wParam.ToInt64() >> 16) & 0xFFFF;
         var isMouseBack = (msg == WmXButtonDown || msg == WmXButtonUp) && (xButton == XButton1 || xButton == XButton2);
@@ -268,7 +305,7 @@ public partial class MainWindow : Window
         if (isMouseBack || isBrowserBack || isBrowserBackKey)
         {
             handled = true;
-            ReturnFromDetails();
+            TryReturnFromDetails();
         }
         return IntPtr.Zero;
     }
@@ -2226,6 +2263,11 @@ public partial class MainWindow : Window
             MediaTileZoom.Value = Math.Clamp(MediaTileZoom.Value + delta, MediaTileZoom.Minimum, MediaTileZoom.Maximum);
             return;
         }
+        if (_loadingMediaBatch || _restoringMediaViewport)
+        {
+            e.Handled = true;
+            return;
+        }
         var deltaRows = e.Delta > 0 ? -1 : 1;
         ScrollMediaTilesByRow(deltaRows);
         e.Handled = true;
@@ -2251,7 +2293,7 @@ public partial class MainWindow : Window
     {
         if (!IsAtTop(scrollViewer)) MediaLoadPreviousPanel.Visibility = Visibility.Collapsed;
         if (!IsAtBottom(scrollViewer)) MediaLoadNextPanel.Visibility = Visibility.Collapsed;
-        if (_loadingMediaBatch) return;
+        if (_loadingMediaBatch || _restoringMediaViewport) return;
         if (direction > 0 && scrollViewer.VerticalOffset + scrollViewer.ViewportHeight >= scrollViewer.ExtentHeight - 40)
         {
             var expectedPage = _lastLoadedMediaPage;
@@ -2268,7 +2310,7 @@ public partial class MainWindow : Window
     async void ShowMediaEmergencyLoadIfNeeded(ScrollViewer scrollViewer, bool previous, int expectedPage)
     {
         await Task.Delay(350);
-        if (!IsLoaded || _loadingMediaBatch) return;
+        if (!IsLoaded || _loadingMediaBatch || _restoringMediaViewport) return;
         var pageSize = FindingPagination.TilePageSize(MediaTileZoom.Value);
         var pageCount = Math.Max(1, (int)Math.Ceiling(_sortedMediaFindings.Length / (double)pageSize));
         if (previous)
@@ -2284,13 +2326,60 @@ public partial class MainWindow : Window
                 : Visibility.Collapsed;
         }
     }
+    sealed record MediaViewportAnchor(Finding? Finding, double ItemTop, double VerticalOffset);
+
+    MediaViewportAnchor CaptureMediaViewportAnchor(ScrollViewer scrollViewer)
+    {
+        foreach (var finding in _visibleMediaFindings)
+        {
+            if (MediaTileList.ItemContainerGenerator.ContainerFromItem(finding) is not FrameworkElement container) continue;
+            try
+            {
+                var top = container.TranslatePoint(new System.Windows.Point(0, 0), MediaTileList).Y;
+                if (top + container.ActualHeight >= 0 && top <= MediaTileList.ActualHeight)
+                    return new MediaViewportAnchor(finding, top, scrollViewer.VerticalOffset);
+            }
+            catch (InvalidOperationException) { }
+        }
+        return new MediaViewportAnchor(null, 0, scrollViewer.VerticalOffset);
+    }
+
+    async void RestoreMediaViewportAsync(ScrollViewer scrollViewer, MediaViewportAnchor anchor)
+    {
+        try
+        {
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
+            var currentItemTop = anchor.ItemTop;
+            if (anchor.Finding is not null && MediaTileList.ItemContainerGenerator.ContainerFromItem(anchor.Finding) is FrameworkElement container)
+            {
+                try
+                {
+                    currentItemTop = container.TranslatePoint(new System.Windows.Point(0, 0), MediaTileList).Y;
+                }
+                catch (InvalidOperationException) { }
+            }
+            var targetOffset = FindingPagination.RestoreViewportOffset(anchor.VerticalOffset, anchor.ItemTop, currentItemTop, scrollViewer.ScrollableHeight);
+            scrollViewer.ScrollToVerticalOffset(targetOffset);
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+        }
+        catch (TaskCanceledException) { }
+        catch (InvalidOperationException) { }
+        finally
+        {
+            _restoringMediaViewport = false;
+        }
+    }
+
     void AppendNextMediaBatch()
     {
-        if (_sortedMediaFindings.Length == 0 || _loadingMediaBatch) return;
+        if (_sortedMediaFindings.Length == 0 || _loadingMediaBatch || _restoringMediaViewport) return;
         var pageSize = FindingPagination.TilePageSize(MediaTileZoom.Value);
         if ((_lastLoadedMediaPage + 1) * pageSize >= _sortedMediaFindings.Length) return;
+        var scrollViewer = FindVisualChild<ScrollViewer>(MediaTileList);
+        var anchor = scrollViewer is null ? null : CaptureMediaViewportAnchor(scrollViewer);
         MediaLoadNextPanel.Visibility = Visibility.Collapsed;
         _loadingMediaBatch = true;
+        _restoringMediaViewport = anchor is not null;
         try
         {
             var page = FindingPagination.Slice(_sortedMediaFindings, _lastLoadedMediaPage + 1, pageSize);
@@ -2310,13 +2399,18 @@ public partial class MainWindow : Window
         {
             _loadingMediaBatch = false;
             UpdateMediaLoadButtons();
+            if (scrollViewer is not null && anchor is not null) RestoreMediaViewportAsync(scrollViewer, anchor);
+            else _restoringMediaViewport = false;
         }
     }
     void PrependPreviousMediaBatch()
     {
-        if (_sortedMediaFindings.Length == 0 || _loadingMediaBatch || _firstLoadedMediaPage <= 0) return;
+        if (_sortedMediaFindings.Length == 0 || _loadingMediaBatch || _restoringMediaViewport || _firstLoadedMediaPage <= 0) return;
+        var scrollViewer = FindVisualChild<ScrollViewer>(MediaTileList);
+        var anchor = scrollViewer is null ? null : CaptureMediaViewportAnchor(scrollViewer);
         MediaLoadPreviousPanel.Visibility = Visibility.Collapsed;
         _loadingMediaBatch = true;
+        _restoringMediaViewport = anchor is not null;
         try
         {
             var pageSize = FindingPagination.TilePageSize(MediaTileZoom.Value);
@@ -2343,6 +2437,8 @@ public partial class MainWindow : Window
         {
             _loadingMediaBatch = false;
             UpdateMediaLoadButtons();
+            if (scrollViewer is not null && anchor is not null) RestoreMediaViewportAsync(scrollViewer, anchor);
+            else _restoringMediaViewport = false;
         }
     }
     void UpdateMediaLoadButtons()
@@ -2419,9 +2515,9 @@ public partial class MainWindow : Window
     void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if ((e.ChangedButton != MouseButton.XButton1 && e.ChangedButton != MouseButton.XButton2)
-            || !TabDetails.IsSelected || _detailsReturnState is null) return;
+            || !CanReturnFromDetails) return;
         e.Handled = true;
-        ReturnFromDetails();
+        TryReturnFromDetails();
     }
     void ReturnFromDetails()
     {

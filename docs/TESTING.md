@@ -10,7 +10,7 @@ Required release command:
 
 It redirects temporary state into the workspace, restores dependencies, runs Release tests, publishes a self-contained single-file EXE, executes `--smoke-test`, checks its exit code and confirms that its PID and child processes are gone.
 
-Coverage includes scoring, classification, age and bidirectional media-resolution filters, original image-header dimensions, pagination windows, localization fallback, exclusions, SQLite, scanner isolation, partial cancellation, filesystem discovery, WPF construction and packaged-process lifecycle. Tests never delete system data or require administrator rights.
+Coverage includes scoring, classification, age and bidirectional media-resolution filters, original image-header dimensions, pagination windows and viewport-anchor offset restoration, localization fallback, exclusions, SQLite, scanner isolation, partial cancellation, filesystem discovery, WPF construction and packaged-process lifecycle. Tests never delete system data or require administrator rights.
 
 Cleanup tests use a dedicated temporary fake local-app-data root. They verify that secondary cleanup preserves AI recommendations and ratings, full cleanup removes only the owned root, and foreign roots are rejected.
 

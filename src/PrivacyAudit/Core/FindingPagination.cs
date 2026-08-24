@@ -25,6 +25,9 @@ public static class FindingPagination
         return new(items, page, pageCount, globallySortedItems.Count, pageSize);
     }
 
+    public static double RestoreViewportOffset(double originalOffset, double originalItemTop, double currentItemTop, double scrollableHeight) =>
+        Math.Clamp(originalOffset + currentItemTop - originalItemTop, 0, Math.Max(0, scrollableHeight));
+
     public static IEnumerable<Finding> Sort(IEnumerable<Finding> source, string property, bool descending)
     {
         return property switch
