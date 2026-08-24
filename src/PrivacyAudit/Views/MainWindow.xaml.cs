@@ -848,7 +848,7 @@ public partial class MainWindow : Window
         EmptyDashboard.Visibility = _findings.Any(x => !x.Ignored) ? Visibility.Collapsed : Visibility.Visible;
         foreach (var g in _findings.Where(x => !x.Ignored).GroupBy(x => x.Category).OrderByDescending(g => g.Sum(x => x.SizeBytes)))
         {
-            var b = new System.Windows.Controls.Button { Width = 250, Height = 116, Margin = new(0, 0, 12, 12), Padding = new(20), HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left, VerticalContentAlignment = System.Windows.VerticalAlignment.Center, Background = (System.Windows.Media.Brush)FindResource("Surface"), Content = $"{g.Key}\n\n{g.Count():N0} объектов   ·   {Format.Bytes(g.Sum(x => x.SizeBytes))}" };
+            var b = new System.Windows.Controls.Button { Width = 250, Height = 116, Margin = new(0, 0, 12, 12), Padding = new(20), HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left, VerticalContentAlignment = System.Windows.VerticalAlignment.Center, Background = (System.Windows.Media.Brush)FindResource("Surface"), Content = $"{g.Key}\n\n{string.Format(LocalizationService.Get("DashboardCategorySummary"), g.Count(), Format.Bytes(g.Sum(x => x.SizeBytes)))}" };
             b.Click += (_, _) => { var item = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == g.Key); if (item is not null) CategoryFilter.SelectedItem = item; MainTabs.SelectedIndex = 1; };
             DashboardPanel.Children.Add(b);
         }

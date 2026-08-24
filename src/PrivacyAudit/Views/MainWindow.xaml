@@ -56,7 +56,7 @@
                 <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc FilterAge}"/><Run Text=":"/></Bold> <Run Text="{local:Loc FilterAgeHelp}"/><LineBreak/>
                 <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc ScreenExposure}"/><Run Text=":"/></Bold> <Run Text="{local:Loc ScreenExposureHelp}"/><LineBreak/>
                 <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc PersonalRecommendationFilter}"/><Run Text=":"/></Bold> <Run Text="{local:Loc PersonalRecommendationHelp}"/><LineBreak/>
-                <Bold Foreground="#FFFFFF"><Run Text="• Поиск / Search:"/></Bold> <Run Text="{local:Loc SearchBoxHelp}"/><LineBreak/>
+                <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc LegendSearchLabel}"/><Run Text=":"/></Bold> <Run Text="{local:Loc SearchBoxHelp}"/><LineBreak/>
                 <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc ResetFilters}"/><Run Text=":"/></Bold> <Run Text="{local:Loc ResetFiltersHelp}"/>
               </TextBlock>
               <TextBlock Text="{local:Loc LegendSectionActions}" FontWeight="SemiBold" FontSize="11" Foreground="#929AAA" Margin="0,0,0,4"/>
