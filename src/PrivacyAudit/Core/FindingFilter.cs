@@ -30,6 +30,48 @@ public static class FindingFilter
         "SizeGte5GB"
     ];
 
+    public static readonly long[] ResolutionThresholds =
+    [
+        0L,
+        300_000L,
+        1_000_000L,
+        2_000_000L,
+        5_000_000L,
+        8_000_000L,
+        12_000_000L,
+        20_000_000L,
+        33_000_000L,
+        50_000_000L
+    ];
+
+    public static readonly string[] ResolutionKeys =
+    [
+        "AnyResolution",
+        "ResolutionGte300K",
+        "ResolutionGte1MP",
+        "ResolutionGte2MP",
+        "ResolutionGte5MP",
+        "ResolutionGte8MP",
+        "ResolutionGte12MP",
+        "ResolutionGte20MP",
+        "ResolutionGte33MP",
+        "ResolutionGte50MP"
+    ];
+
+    public static readonly string[] ResolutionBelowKeys =
+    [
+        "AnyResolution",
+        "ResolutionLt300K",
+        "ResolutionLt1MP",
+        "ResolutionLt2MP",
+        "ResolutionLt5MP",
+        "ResolutionLt8MP",
+        "ResolutionLt12MP",
+        "ResolutionLt20MP",
+        "ResolutionLt33MP",
+        "ResolutionLt50MP"
+    ];
+
     public static readonly string[] AgeKeys =
     [
         "AnyAge",
@@ -47,6 +89,23 @@ public static class FindingFilter
     {
         if (sizeStep <= 0 || sizeStep >= SizeThresholds.Length) return true;
         return finding.SizeBytes >= SizeThresholds[sizeStep];
+    }
+
+    public static bool MatchesResolution(int width, int height, int resolutionStep)
+    {
+        var absoluteStep = Math.Abs(resolutionStep);
+        if (absoluteStep == 0 || absoluteStep >= ResolutionThresholds.Length) return true;
+        if (width <= 0 || height <= 0) return false;
+        var pixelCount = (long)width * height;
+        return resolutionStep > 0
+            ? pixelCount >= ResolutionThresholds[absoluteStep]
+            : pixelCount < ResolutionThresholds[absoluteStep];
+    }
+
+    public static bool MatchesResolution(MediaImageDimensions? dimensions, int resolutionStep)
+    {
+        if (resolutionStep == 0) return true;
+        return dimensions is { } original && MatchesResolution(original.Width, original.Height, resolutionStep);
     }
 
     public static bool MatchesAge(Finding finding, int ageStep, DateTime? referenceTime = null)
@@ -73,5 +132,11 @@ public static class FindingFilter
     }
 
     public static string GetSizeKey(int step) => step >= 0 && step < SizeKeys.Length ? SizeKeys[step] : SizeKeys[0];
+    public static string GetResolutionKey(int step)
+    {
+        var absoluteStep = Math.Abs(step);
+        if (absoluteStep >= ResolutionThresholds.Length) return ResolutionKeys[0];
+        return step < 0 ? ResolutionBelowKeys[absoluteStep] : ResolutionKeys[absoluteStep];
+    }
     public static string GetAgeKey(int step) => step >= 0 && step < AgeKeys.Length ? AgeKeys[step] : AgeKeys[0];
 }

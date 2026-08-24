@@ -1,4 +1,6 @@
 using PrivacyAudit.Core;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace PrivacyAudit.Tests;
 
@@ -25,6 +27,52 @@ public sealed class FilterTests
     {
         var finding = new Finding { DisplayName = "test", SizeBytes = size };
         Assert.Equal(expected, FindingFilter.MatchesSize(finding, step));
+    }
+
+    [Theory]
+    [InlineData(1920, 1080, 1, true)]
+    [InlineData(800, 600, 2, false)]
+    [InlineData(3840, 2160, 3, true)]
+    [InlineData(100, 100, 1, false)]
+    [InlineData(0, 0, 0, true)]
+    public void MatchesResolution_FiltersByMinimumPixelCount(int width, int height, int step, bool expected) =>
+        Assert.Equal(expected, FindingFilter.MatchesResolution(width, height, step));
+
+    [Theory]
+    [InlineData(400, 400, -1, true)]
+    [InlineData(200, 200, -1, true)]
+    [InlineData(1600, 900, -1, false)]
+    [InlineData(1920, 1080, -2, false)]
+    [InlineData(800, 600, -2, true)]
+    public void MatchesResolution_NegativeStepsFilterByMaximumPixelCount(int width, int height, int step, bool expected) =>
+        Assert.Equal(expected, FindingFilter.MatchesResolution(width, height, step));
+
+    [Fact]
+    public void MatchesResolution_OriginalDimensionsOverloadAppliesNegativeFilter()
+    {
+        var original = new MediaImageDimensions(1600, 900);
+
+        Assert.False(FindingFilter.MatchesResolution(original, -1));
+        Assert.True(FindingFilter.MatchesResolution(null, 0));
+        Assert.False(FindingFilter.MatchesResolution(null, -1));
+    }
+
+    [Fact]
+    public void MediaImageInfo_ReadsOriginalHeaderDimensions()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"privacy-audit-dimensions-{Guid.NewGuid():N}.png");
+        try
+        {
+            using (var image = new Image<Rgb24>(4096, 2048)) image.SaveAsPng(path);
+
+            Assert.True(MediaImageInfo.TryReadDimensions(path, out var dimensions));
+            Assert.Equal(4096, dimensions.Width);
+            Assert.Equal(2048, dimensions.Height);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
     }
 
     [Fact]
@@ -77,6 +125,8 @@ public sealed class FilterTests
         Assert.Equal("SizeGte1MB", FindingFilter.GetSizeKey(3));
         Assert.Equal("AnyAge", FindingFilter.GetAgeKey(0));
         Assert.Equal("AgeOlder1Year", FindingFilter.GetAgeKey(5));
+        Assert.Equal("ResolutionGte1MP", FindingFilter.GetResolutionKey(2));
+        Assert.Equal("ResolutionLt1MP", FindingFilter.GetResolutionKey(-2));
     }
 
     [Theory]

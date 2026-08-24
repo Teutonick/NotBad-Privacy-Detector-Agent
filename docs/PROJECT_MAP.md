@@ -36,8 +36,9 @@ PrivacyAudit.sln
 │   ├── Models.cs                   Finding, RiskLevel, ScanContext, ScanProgress, application-history correlation fields
 │   ├── ApplicationHistory.cs       bounded offline Jump List parser, ANSI/Unicode/UTF-8-repaired paths, merged AppIDs, path correlation, historical scoring and object-level personal-priority state
 │   ├── CrashLogger.cs             persistent offline diagnostic and unhandled crash logger
-│   ├── FindingFilter.cs            discrete size and age filtering logic
-│   ├── FindingPagination.cs        virtualization and sorting
+│   ├── FindingFilter.cs            discrete size/age and centered bidirectional media-resolution filtering logic
+│   ├── MediaImageInfo.cs           lazy header-only image dimension reader for media filtering
+│   ├── FindingPagination.cs        virtualization, six-page dynamic windows, and sorting
 │   ├── ObservableRangeCollection.cs batch UI notifications
 │   ├── ScanCoordinator.cs         isolated scanner execution
 │   ├── TextExtractor.cs           plain text, code, and DOCX/XLSX/PPTX text extractor

@@ -47,4 +47,10 @@ public sealed class PaginationTests
         Assert.Equal(1, notifications);
         Assert.Equal(NotifyCollectionChangedAction.Reset, action);
     }
+
+    [Fact]
+    public void LoadedPageWindow_IsTwiceThePreviousThreePageBuffer()
+    {
+        Assert.Equal(6, FindingPagination.LoadedPageWindow);
+    }
 }

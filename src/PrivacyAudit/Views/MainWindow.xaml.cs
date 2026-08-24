@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     readonly ObservableRangeCollection<Finding> _visibleFindings = [];
     readonly List<Finding> _mediaFindings = [];
     readonly ObservableRangeCollection<Finding> _visibleMediaFindings = [];
+    readonly Dictionary<string, MediaImageDimensions?> _mediaDimensions = new(StringComparer.OrdinalIgnoreCase);
     readonly AuditDatabase _db;
     readonly ModelManager _modelManager;
     readonly PeopleScanRepository _peopleRepository;
@@ -372,7 +373,7 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("StartScan"));
         if (guard is null) return;
 
-        _cts = new(); _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _completedPeopleResults = 0; DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
+        _cts = new(); _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
         ScanButton.IsEnabled = false; CancelButton.IsEnabled = true; Busy.Visibility = Visibility.Visible;
         try
         {
@@ -895,11 +896,15 @@ public partial class MainWindow : Window
             MediaSizeLabel.Text = LocalizationService.Get(FindingFilter.GetSizeKey((int)MediaSizeSlider.Value));
         if (MediaAgeLabel is not null && MediaAgeSlider is not null)
             MediaAgeLabel.Text = LocalizationService.Get(FindingFilter.GetAgeKey((int)MediaAgeSlider.Value));
+        if (MediaResolutionLabel is not null && MediaResolutionSlider is not null)
+            MediaResolutionLabel.Text = LocalizationService.Get(FindingFilter.GetResolutionKey((int)MediaResolutionSlider.Value));
         UpdatePeoplePresentation();
     }
     async void RefreshFindingsPage(bool resetPage = false)
     {
         if (!IsInitialized || FindingsPageStatus is null) return;
+        FindingsLoadPreviousPanel.Visibility = Visibility.Collapsed;
+        FindingsLoadNextPanel.Visibility = Visibility.Collapsed;
         _pageLoadCts?.Cancel();
         _pageLoadCts?.Dispose();
         _pageLoadCts = new CancellationTokenSource();
@@ -925,10 +930,15 @@ public partial class MainWindow : Window
                 _firstLoadedPage = _lastLoadedPage = page.PageIndex;
                 _userScrollPending = false;
                 FindingsPageStatus.Text = string.Format(LocalizationService.Get("PageStatus"), page.PageIndex + 1, page.PageCount, page.TotalCount, page.PageSize);
+                UpdateFindingsLoadButtons();
             });
         }
         catch (OperationCanceledException) { }
-        finally { if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false; }
+        finally
+        {
+            if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false;
+            UpdateFindingsLoadButtons();
+        }
     }
     void Findings_MouseWheel(object sender, MouseWheelEventArgs e)
     {
@@ -940,21 +950,76 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
+        var host = _imageTileMode ? (DependencyObject)FindingsTileList : FindingsGrid;
+        var scrollViewer = FindVisualChildren<ScrollViewer>(host).FirstOrDefault();
+        if (scrollViewer is not null && e.Delta < 0 && IsAtBottom(scrollViewer))
+        {
+            var expectedPage = _lastLoadedPage;
+            _userScrollPending = false;
+            AppendNextFindingBatch();
+            ShowFindingsEmergencyLoadIfNeeded(scrollViewer, previous: false, expectedPage: expectedPage);
+            e.Handled = true;
+            return;
+        }
+        if (scrollViewer is not null && e.Delta > 0 && IsAtTop(scrollViewer))
+        {
+            var expectedPage = _firstLoadedPage;
+            _userScrollPending = false;
+            PrependPreviousFindingBatch();
+            ShowFindingsEmergencyLoadIfNeeded(scrollViewer, previous: true, expectedPage: expectedPage);
+            e.Handled = true;
+            return;
+        }
         _userScrollPending = true;
     }
     void FindingsScroll_Changed(object sender, ScrollChangedEventArgs e)
     {
+        if (e.OriginalSource is not ScrollViewer scrollViewer) return;
+        if (!IsAtTop(scrollViewer)) FindingsLoadPreviousPanel.Visibility = Visibility.Collapsed;
+        if (!IsAtBottom(scrollViewer)) FindingsLoadNextPanel.Visibility = Visibility.Collapsed;
         if (_loadingFindingBatch) { _userScrollPending = false; return; }
         if (!_userScrollPending || e.ExtentHeight <= e.ViewportHeight) return;
         if (e.VerticalChange > 0 && e.VerticalOffset + (e.ViewportHeight * 1.5) >= e.ExtentHeight)
         {
+            var expectedPage = _lastLoadedPage;
             _userScrollPending = false;
             AppendNextFindingBatch();
+            if (IsAtBottom(scrollViewer)) ShowFindingsEmergencyLoadIfNeeded(scrollViewer, previous: false, expectedPage: expectedPage);
         }
         else if (e.VerticalChange < 0 && e.VerticalOffset <= e.ViewportHeight * 0.5)
         {
+            var expectedPage = _firstLoadedPage;
             _userScrollPending = false;
             PrependPreviousFindingBatch();
+            if (IsAtTop(scrollViewer)) ShowFindingsEmergencyLoadIfNeeded(scrollViewer, previous: true, expectedPage: expectedPage);
+        }
+    }
+
+    static bool IsAtTop(ScrollViewer scrollViewer) => scrollViewer.VerticalOffset <= 1;
+    static bool IsAtBottom(ScrollViewer scrollViewer) =>
+        scrollViewer.VerticalOffset + scrollViewer.ViewportHeight >= scrollViewer.ExtentHeight - 1;
+
+    async void ShowFindingsEmergencyLoadIfNeeded(ScrollViewer scrollViewer, bool previous, int expectedPage)
+    {
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            await Task.Delay(250);
+            if (!_loadingFindingBatch) break;
+        }
+        if (!IsLoaded || _loadingFindingBatch) return;
+        var pageSize = _imageTileMode && IsImagesFilter ? FindingPagination.TilePageSize(FindingsTileZoom.Value) : FindingPagination.ListPageSize;
+        var pageCount = Math.Max(1, (int)Math.Ceiling(_sortedFindings.Length / (double)pageSize));
+        if (previous)
+        {
+            FindingsLoadPreviousPanel.Visibility = _firstLoadedPage == expectedPage && _firstLoadedPage > 0 && IsAtTop(scrollViewer)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+        else
+        {
+            FindingsLoadNextPanel.Visibility = _lastLoadedPage == expectedPage && _lastLoadedPage + 1 < pageCount && IsAtBottom(scrollViewer)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
     }
     async void AppendNextFindingBatch()
@@ -963,6 +1028,7 @@ public partial class MainWindow : Window
         var pageSize = _imageTileMode && IsImagesFilter ? FindingPagination.TilePageSize(FindingsTileZoom.Value) : FindingPagination.ListPageSize;
         var pageCount = Math.Max(1, (int)Math.Ceiling(_sortedFindings.Length / (double)pageSize));
         if (_lastLoadedPage + 1 >= pageCount) return;
+        FindingsLoadNextPanel.Visibility = Visibility.Collapsed;
         _loadingFindingBatch = true;
         _pageLoadCts?.Cancel();
         _pageLoadCts = new CancellationTokenSource();
@@ -981,7 +1047,7 @@ public partial class MainWindow : Window
                 _lastLoadedPage = nextPage;
                 _visibleFindings.AddRange(page.Items);
                 _loadedFindingBatches.Enqueue(page.Items.Count);
-                while (_loadedFindingBatches.Count > 3)
+                while (_loadedFindingBatches.Count > FindingPagination.LoadedPageWindow)
                 {
                     var remove = _loadedFindingBatches.Dequeue();
                     _visibleFindings.RemoveRange(0, remove);
@@ -989,14 +1055,20 @@ public partial class MainWindow : Window
                 }
                 _findingsPage = _lastLoadedPage;
                 FindingsPageStatus.Text = string.Format(LocalizationService.Get("PageStatus"), _lastLoadedPage + 1, page.PageCount, page.TotalCount, page.PageSize);
+                UpdateFindingsLoadButtons();
             });
         }
         catch (OperationCanceledException) { }
-        finally { if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false; }
+        finally
+        {
+            if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false;
+            UpdateFindingsLoadButtons();
+        }
     }
     async void PrependPreviousFindingBatch()
     {
         if (_sortedFindings.Length == 0 || _firstLoadedPage <= 0) return;
+        FindingsLoadPreviousPanel.Visibility = Visibility.Collapsed;
         var pageSize = _imageTileMode && IsImagesFilter ? FindingPagination.TilePageSize(FindingsTileZoom.Value) : FindingPagination.ListPageSize;
         _loadingFindingBatch = true;
         _pageLoadCts?.Cancel();
@@ -1019,7 +1091,7 @@ public partial class MainWindow : Window
                 _loadedFindingBatches.Clear();
                 _loadedFindingBatches.Enqueue(page.Items.Count);
                 foreach (var count in existingCounts) _loadedFindingBatches.Enqueue(count);
-                while (_loadedFindingBatches.Count > 3)
+                while (_loadedFindingBatches.Count > FindingPagination.LoadedPageWindow)
                 {
                     var counts = _loadedFindingBatches.ToArray();
                     var remove = counts[^1];
@@ -1030,10 +1102,37 @@ public partial class MainWindow : Window
                 }
                 _findingsPage = _firstLoadedPage;
                 FindingsPageStatus.Text = string.Format(LocalizationService.Get("PageStatus"), _firstLoadedPage + 1, Math.Max(1, (int)Math.Ceiling(_sortedFindings.Length / (double)pageSize)), _sortedFindings.Length, pageSize);
+                UpdateFindingsLoadButtons();
             });
         }
         catch (OperationCanceledException) { }
-        finally { if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false; }
+        finally
+        {
+            if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false;
+            UpdateFindingsLoadButtons();
+        }
+    }
+    void UpdateFindingsLoadButtons()
+    {
+        if (FindingsLoadPreviousButton is null || FindingsLoadNextButton is null) return;
+        var pageSize = _imageTileMode && IsImagesFilter ? FindingPagination.TilePageSize(FindingsTileZoom.Value) : FindingPagination.ListPageSize;
+        var pageCount = Math.Max(1, (int)Math.Ceiling(_sortedFindings.Length / (double)pageSize));
+        var hasPrevious = _firstLoadedPage > 0;
+        var hasNext = _lastLoadedPage + 1 < pageCount;
+        if (!hasPrevious) FindingsLoadPreviousPanel.Visibility = Visibility.Collapsed;
+        if (!hasNext) FindingsLoadNextPanel.Visibility = Visibility.Collapsed;
+        FindingsLoadPreviousButton.IsEnabled = !_loadingFindingBatch && hasPrevious;
+        FindingsLoadNextButton.IsEnabled = !_loadingFindingBatch && hasNext;
+    }
+    void FindingsLoadPrevious_Click(object sender, RoutedEventArgs e)
+    {
+        FindingsLoadPreviousPanel.Visibility = Visibility.Collapsed;
+        PrependPreviousFindingBatch();
+    }
+    void FindingsLoadNext_Click(object sender, RoutedEventArgs e)
+    {
+        FindingsLoadNextPanel.Visibility = Visibility.Collapsed;
+        AppendNextFindingBatch();
     }
     bool IsImagesFilter => (CategoryFilter?.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "Images";
     void UpdateFindingsPresentation()
@@ -1070,6 +1169,8 @@ public partial class MainWindow : Window
 
     async void UpdatePeoplePresentation()
     {
+        MediaLoadPreviousPanel.Visibility = Visibility.Collapsed;
+        MediaLoadNextPanel.Visibility = Visibility.Collapsed;
         _mediaFilterCts?.Cancel();
         _mediaFilterCts?.Dispose();
         var loadSource = new CancellationTokenSource();
@@ -1078,6 +1179,7 @@ public partial class MainWindow : Window
         var filter = (MediaPeopleFilter?.SelectedItem as ComboBoxItem)?.Tag?.ToString();
         var sizeStep = MediaSizeSlider is not null ? (int)MediaSizeSlider.Value : 0;
         var ageStep = MediaAgeSlider is not null ? (int)MediaAgeSlider.Value : 0;
+        var resolutionStep = MediaResolutionSlider is not null ? (int)MediaResolutionSlider.Value : 0;
         var now = DateTime.Now;
         var mediaSnapshot = _mediaFindings.ToArray();
         MediaLoadingPanel.Visibility = Visibility.Visible;
@@ -1099,6 +1201,8 @@ public partial class MainWindow : Window
                     if ((index++ & 255) == 0) token.ThrowIfCancellationRequested();
                     if (!FindingFilter.MatchesSize(finding, sizeStep)) continue;
                     if (!FindingFilter.MatchesAge(finding, ageStep, now)) continue;
+                    var originalDimensions = resolutionStep == 0 ? null : GetMediaDimensions(finding.Path);
+                    if (!FindingFilter.MatchesResolution(originalDimensions, resolutionStep)) continue;
                     var hasResult = PeopleScanMetadata.TryParse(finding.MetadataJson, out var result);
                     var isDoc = DocumentDetectionResult.TryParse(finding.MetadataJson, out var docResult) && docResult!.IsDocument;
                     if (hasResult)
@@ -1138,6 +1242,7 @@ public partial class MainWindow : Window
                     : string.Format(LocalizationService.Get("PeopleScanComplete"), prepared.Records, prepared.People, prepared.NoPeople, prepared.Errors);
                 _completedPeopleResults = prepared.People + prepared.NoPeople;
                 UpdateModelControls();
+                UpdateMediaLoadButtons();
                 MediaLoadingPanel.Visibility = Visibility.Collapsed;
                 MediaTileList.Visibility = prepared.Filtered.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
                 MediaEmptyPanel.Visibility = prepared.Filtered.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -1153,6 +1258,16 @@ public partial class MainWindow : Window
                 _mediaFilterCts = null;
             }
             loadSource.Dispose();
+        }
+    }
+    MediaImageDimensions? GetMediaDimensions(string path)
+    {
+        lock (_mediaDimensions)
+        {
+            if (_mediaDimensions.TryGetValue(path, out var cached)) return cached;
+            MediaImageDimensions? result = MediaImageInfo.TryReadDimensions(path, out var dimensions) ? dimensions : null;
+            _mediaDimensions[path] = result;
+            return result;
         }
     }
 
@@ -1416,6 +1531,7 @@ public partial class MainWindow : Window
         MediaPeopleFilter.SelectedIndex = 0;
         MediaSizeSlider.Value = 0;
         MediaAgeSlider.Value = 0;
+        MediaResolutionSlider.Value = 0;
         MediaTileZoom.Value = 180;
         UpdatePeoplePresentation();
     }
@@ -2119,22 +2235,53 @@ public partial class MainWindow : Window
         if (VisualTreeHelper.GetChildrenCount(MediaTileList) == 0) return;
         var border = VisualTreeHelper.GetChild(MediaTileList, 0) as Decorator;
         if (border?.Child is not ScrollViewer sv) return;
-        var targetOffset = Math.Max(0, sv.VerticalOffset + (rowDelta * (MediaTileZoom.Value + 20)));
+        var targetOffset = Math.Clamp(sv.VerticalOffset + (rowDelta * (MediaTileZoom.Value + 20)), 0, sv.ScrollableHeight);
+        var cannotMoveFurther = Math.Abs(targetOffset - sv.VerticalOffset) < 0.5;
         sv.ScrollToVerticalOffset(targetOffset);
+        if (cannotMoveFurther) HandleMediaBoundary(sv, rowDelta);
     }
     void MediaTileList_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (e.VerticalChange == 0 && e.ExtentHeightChange == 0) return;
-        if (_loadingMediaBatch) return;
         var sv = e.OriginalSource as ScrollViewer;
         if (sv is null) return;
-        if (sv.VerticalOffset + sv.ViewportHeight >= sv.ExtentHeight - 40 && e.VerticalChange > 0)
+        HandleMediaBoundary(sv, Math.Sign(e.VerticalChange));
+    }
+    void HandleMediaBoundary(ScrollViewer scrollViewer, int direction)
+    {
+        if (!IsAtTop(scrollViewer)) MediaLoadPreviousPanel.Visibility = Visibility.Collapsed;
+        if (!IsAtBottom(scrollViewer)) MediaLoadNextPanel.Visibility = Visibility.Collapsed;
+        if (_loadingMediaBatch) return;
+        if (direction > 0 && scrollViewer.VerticalOffset + scrollViewer.ViewportHeight >= scrollViewer.ExtentHeight - 40)
         {
+            var expectedPage = _lastLoadedMediaPage;
             AppendNextMediaBatch();
+            if (IsAtBottom(scrollViewer)) ShowMediaEmergencyLoadIfNeeded(scrollViewer, previous: false, expectedPage: expectedPage);
         }
-        else if (sv.VerticalOffset <= 40 && e.VerticalChange < 0 && _firstLoadedMediaPage > 0)
+        else if (direction < 0 && scrollViewer.VerticalOffset <= 40)
         {
+            var expectedPage = _firstLoadedMediaPage;
             PrependPreviousMediaBatch();
+            if (IsAtTop(scrollViewer)) ShowMediaEmergencyLoadIfNeeded(scrollViewer, previous: true, expectedPage: expectedPage);
+        }
+    }
+    async void ShowMediaEmergencyLoadIfNeeded(ScrollViewer scrollViewer, bool previous, int expectedPage)
+    {
+        await Task.Delay(350);
+        if (!IsLoaded || _loadingMediaBatch) return;
+        var pageSize = FindingPagination.TilePageSize(MediaTileZoom.Value);
+        var pageCount = Math.Max(1, (int)Math.Ceiling(_sortedMediaFindings.Length / (double)pageSize));
+        if (previous)
+        {
+            MediaLoadPreviousPanel.Visibility = _firstLoadedMediaPage == expectedPage && _firstLoadedMediaPage > 0 && IsAtTop(scrollViewer)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+        else
+        {
+            MediaLoadNextPanel.Visibility = _lastLoadedMediaPage == expectedPage && _lastLoadedMediaPage + 1 < pageCount && IsAtBottom(scrollViewer)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
     }
     void AppendNextMediaBatch()
@@ -2142,6 +2289,7 @@ public partial class MainWindow : Window
         if (_sortedMediaFindings.Length == 0 || _loadingMediaBatch) return;
         var pageSize = FindingPagination.TilePageSize(MediaTileZoom.Value);
         if ((_lastLoadedMediaPage + 1) * pageSize >= _sortedMediaFindings.Length) return;
+        MediaLoadNextPanel.Visibility = Visibility.Collapsed;
         _loadingMediaBatch = true;
         try
         {
@@ -2149,19 +2297,25 @@ public partial class MainWindow : Window
             _lastLoadedMediaPage = page.PageIndex;
             _visibleMediaFindings.AddRange(page.Items);
             _loadedMediaBatches.Enqueue(page.Items.Count);
-            while (_loadedMediaBatches.Count > 3)
+            while (_loadedMediaBatches.Count > FindingPagination.LoadedPageWindow)
             {
                 var remove = _loadedMediaBatches.Dequeue();
                 _visibleMediaFindings.RemoveRange(0, remove);
                 _firstLoadedMediaPage++;
             }
             MediaCountText.Text = string.Format(LocalizationService.Get("MediaCount"), Math.Min((_lastLoadedMediaPage + 1) * pageSize, page.TotalCount), page.TotalCount);
+            UpdateMediaLoadButtons();
         }
-        finally { _loadingMediaBatch = false; }
+        finally
+        {
+            _loadingMediaBatch = false;
+            UpdateMediaLoadButtons();
+        }
     }
     void PrependPreviousMediaBatch()
     {
         if (_sortedMediaFindings.Length == 0 || _loadingMediaBatch || _firstLoadedMediaPage <= 0) return;
+        MediaLoadPreviousPanel.Visibility = Visibility.Collapsed;
         _loadingMediaBatch = true;
         try
         {
@@ -2173,7 +2327,7 @@ public partial class MainWindow : Window
             _loadedMediaBatches.Clear();
             _loadedMediaBatches.Enqueue(page.Items.Count);
             foreach (var count in existing) _loadedMediaBatches.Enqueue(count);
-            while (_loadedMediaBatches.Count > 3)
+            while (_loadedMediaBatches.Count > FindingPagination.LoadedPageWindow)
             {
                 var counts = _loadedMediaBatches.ToArray();
                 var remove = counts[^1];
@@ -2183,8 +2337,35 @@ public partial class MainWindow : Window
                 _lastLoadedMediaPage--;
             }
             MediaCountText.Text = string.Format(LocalizationService.Get("MediaCount"), Math.Min((_lastLoadedMediaPage + 1) * pageSize, page.TotalCount), page.TotalCount);
+            UpdateMediaLoadButtons();
         }
-        finally { _loadingMediaBatch = false; }
+        finally
+        {
+            _loadingMediaBatch = false;
+            UpdateMediaLoadButtons();
+        }
+    }
+    void UpdateMediaLoadButtons()
+    {
+        if (MediaLoadPreviousButton is null || MediaLoadNextButton is null) return;
+        var pageSize = FindingPagination.TilePageSize(MediaTileZoom.Value);
+        var pageCount = Math.Max(1, (int)Math.Ceiling(_sortedMediaFindings.Length / (double)pageSize));
+        var hasPrevious = _firstLoadedMediaPage > 0;
+        var hasNext = _lastLoadedMediaPage + 1 < pageCount;
+        if (!hasPrevious) MediaLoadPreviousPanel.Visibility = Visibility.Collapsed;
+        if (!hasNext) MediaLoadNextPanel.Visibility = Visibility.Collapsed;
+        MediaLoadPreviousButton.IsEnabled = !_loadingMediaBatch && hasPrevious;
+        MediaLoadNextButton.IsEnabled = !_loadingMediaBatch && hasNext;
+    }
+    void MediaLoadPrevious_Click(object sender, RoutedEventArgs e)
+    {
+        MediaLoadPreviousPanel.Visibility = Visibility.Collapsed;
+        PrependPreviousMediaBatch();
+    }
+    void MediaLoadNext_Click(object sender, RoutedEventArgs e)
+    {
+        MediaLoadNextPanel.Visibility = Visibility.Collapsed;
+        AppendNextMediaBatch();
     }
     void MediaTileZoom_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -2346,7 +2527,10 @@ public partial class MainWindow : Window
                 bi.EndInit();
                 bi.Freeze();
                 DetailsImagePreview.Source = bi;
-                DetailsImageDimensions.Text = $"{bi.PixelWidth} × {bi.PixelHeight} px";
+                var originalDimensions = GetMediaDimensions(f.Path);
+                DetailsImageDimensions.Text = originalDimensions is { } sourceDimensions
+                    ? $"{sourceDimensions.Width:N0} × {sourceDimensions.Height:N0} px"
+                    : $"{bi.PixelWidth:N0} × {bi.PixelHeight:N0} px";
                 DetailsImageFormat.Text = $"{Path.GetExtension(f.Path).ToUpperInvariant().TrimStart('.')} • {f.SizeDisplay}";
                 DetailsImagePreviewBorder.Visibility = Visibility.Visible;
             }
@@ -2776,7 +2960,7 @@ public partial class MainWindow : Window
         if (!CanRunCleanup) throw new InvalidOperationException(LocalizationService.Get("CleanupBusy"));
         _pageLoadCts?.Cancel(); _mediaFilterCts?.Cancel();
         _cleanupService.ClearCachesAndAuditResults();
-        _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear();
+        _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear();
         _selected = null; DetailsText.Clear(); DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible;
         RebuildCategories(); RefreshFindingsPage(true); UpdatePeoplePresentation(); UpdateModelControls();
         StatusText.Text = LocalizationService.Get("CleanupSecondaryDone");

@@ -7,6 +7,7 @@ public static class FindingPagination
     // Deliberately larger than the viewport: a page must be long enough to exercise
     // scroll-boundary loading instead of switching while a short page is visible.
     public const int ListPageSize = 600;
+    public const int LoadedPageWindow = 6;
 
     public static int TilePageSize(double tileSize)
     {

@@ -127,7 +127,10 @@
     </StackPanel></Border>
     <Border Grid.Row="2" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="18" Padding="8">
       <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <DataGrid x:Name="FindingsGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.ScrollChanged="FindingsScroll_Changed" PreviewMouseWheel="Findings_MouseWheel" PreviewMouseRightButtonDown="Finding_RightClick" Sorting="FindingsGrid_Sorting" SelectionChanged="Finding_Selected" MouseDoubleClick="FindingsGrid_MouseDoubleClick">
+        <Border x:Name="FindingsLoadPreviousPanel" Grid.Row="0" Panel.ZIndex="5" VerticalAlignment="Top" Background="#F0162233" BorderBrush="#5A69B7FF" BorderThickness="1" CornerRadius="10" Padding="8,5" Margin="12,8,12,0" Visibility="Collapsed">
+          <Button x:Name="FindingsLoadPreviousButton" Click="FindingsLoadPrevious_Click" Content="{local:Loc LoadPreviousBatch}" Padding="14,7" HorizontalAlignment="Center" Background="#1F69B7FF" ToolTip="{local:Loc LoadPreviousBatchHelp}"/>
+        </Border>
+        <DataGrid x:Name="FindingsGrid" Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.ScrollChanged="FindingsScroll_Changed" PreviewMouseWheel="Findings_MouseWheel" PreviewMouseRightButtonDown="Finding_RightClick" Sorting="FindingsGrid_Sorting" SelectionChanged="Finding_Selected" MouseDoubleClick="FindingsGrid_MouseDoubleClick">
           <DataGrid.Columns>
             <DataGridTemplateColumn Header="{local:Loc Preview}" Width="68"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Width="42" Height="36" Background="#18FFFFFF" CornerRadius="8" HorizontalAlignment="Center"><Grid><TextBlock Text="{Binding Category, Converter={StaticResource FileGlyphConverter}}" Foreground="#69B7FF" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/><local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="64" Width="38" Height="32" Stretch="Uniform"/></Grid></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
             <DataGridTextColumn x:Name="RiskColumn" Header="{local:Loc Risk}" SortMemberPath="RiskLevel" Binding="{Binding RiskLevel}" Width="90"/>
@@ -162,11 +165,14 @@
             <DataGridTextColumn x:Name="ModifiedColumn" Header="{local:Loc Modified}" SortMemberPath="ModifiedAt" Binding="{Binding ModifiedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="140"/>
           </DataGrid.Columns>
         </DataGrid>
-        <ListBox x:Name="FindingsTileList" Visibility="Collapsed" SelectionMode="Extended" Background="Transparent" BorderThickness="0" SelectionChanged="TileFinding_Selected" MouseDoubleClick="FindingsTile_DoubleClick" Tag="{Binding ElementName=FindingsTileZoom, Path=Value}" ScrollViewer.ScrollChanged="FindingsScroll_Changed" PreviewMouseWheel="Findings_MouseWheel" PreviewMouseRightButtonDown="Finding_RightClick" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox x:Name="FindingsTileList" Grid.Row="0" Visibility="Collapsed" SelectionMode="Extended" Background="Transparent" BorderThickness="0" SelectionChanged="TileFinding_Selected" MouseDoubleClick="FindingsTile_DoubleClick" Tag="{Binding ElementName=FindingsTileZoom, Path=Value}" ScrollViewer.ScrollChanged="FindingsScroll_Changed" PreviewMouseWheel="Findings_MouseWheel" PreviewMouseRightButtonDown="Finding_RightClick" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
           <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
           <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="5"/></Style></ListBox.ItemContainerStyle>
           <ListBox.ItemTemplate><DataTemplate><Border Width="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=Tag}" Height="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=Tag}" Background="#12FFFFFF" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="7"><Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="256" Stretch="Uniform"/><TextBlock Grid.Row="1" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" FontSize="11" Margin="2,6,2,1" ToolTip="{Binding Path}"/><TextBlock Grid.Row="2" Text="{Binding MetadataJson, Converter={StaticResource FindingBadgeConverter}}" Foreground="#FF9F0A" FontSize="10" TextTrimming="CharacterEllipsis" Margin="2,1"/><StackPanel Grid.Row="3" Orientation="Horizontal"><TextBlock Text="{Binding PersonalAttentionDisplay}" Foreground="#69B7FF" Width="35" VerticalAlignment="Center"/><Button Content="👍" Tag="True" Click="PersonalFeedback_Click" Padding="3,1" Margin="1" Opacity="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackOpacityConverter}, ConverterParameter=True}" Background="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackBackgroundConverter}, ConverterParameter=True}" ToolTip="{local:Loc Interesting}"/><Button Content="👎" Tag="False" Click="PersonalFeedback_Click" Padding="3,1" Margin="1" Opacity="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackOpacityConverter}, ConverterParameter=False}" Background="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackBackgroundConverter}, ConverterParameter=False}" ToolTip="{local:Loc NotInteresting}"/><Button Content="×" Tag="Clear" Click="PersonalFeedback_Click" Padding="3,1" Margin="1" Opacity="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackOpacityConverter}, ConverterParameter=Clear}" ToolTip="{local:Loc ClearRating}"/></StackPanel></Grid></Border></DataTemplate></ListBox.ItemTemplate>
         </ListBox>
+        <Border x:Name="FindingsLoadNextPanel" Grid.Row="0" Panel.ZIndex="5" VerticalAlignment="Bottom" Background="#F0162233" BorderBrush="#5A69B7FF" BorderThickness="1" CornerRadius="10" Padding="8,5" Margin="12,0,12,8" Visibility="Collapsed">
+          <Button x:Name="FindingsLoadNextButton" Click="FindingsLoadNext_Click" Content="{local:Loc LoadNextBatch}" Padding="14,7" HorizontalAlignment="Center" Background="#1F69B7FF" ToolTip="{local:Loc LoadNextBatchHelp}"/>
+        </Border>
         <DockPanel Grid.Row="1" Margin="8,8,8,2">
           <StackPanel Orientation="Horizontal"><Button Click="PreviousFindingsPage_Click" Content="{local:Loc PreviousPage}" Padding="12,7" ToolTip="{local:Loc PreviousPageHelp}"/><Button Click="NextFindingsPage_Click" Content="{local:Loc NextPage}" Padding="12,7" ToolTip="{local:Loc NextPageHelp}"/></StackPanel>
           <TextBlock x:Name="FindingsPageStatus" DockPanel.Dock="Right" Style="{StaticResource MutedText}" VerticalAlignment="Center"/>
@@ -213,7 +219,8 @@
                 <TextBlock TextWrapping="Wrap" FontSize="10.5" LineHeight="16" Foreground="#BAC5D6" Margin="0,0,0,8">
                   <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc AllPeopleResults}"/><Run Text=":"/></Bold> <Run Text="{local:Loc MediaPeopleFilterHelp}"/><LineBreak/>
                   <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc FilterSize}"/><Run Text=":"/></Bold> <Run Text="{local:Loc FilterSizeHelp}"/><LineBreak/>
-                  <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc FilterAge}"/><Run Text=":"/></Bold> <Run Text="{local:Loc FilterAgeHelp}"/><LineBreak/>
+                   <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc FilterAge}"/><Run Text=":"/></Bold> <Run Text="{local:Loc FilterAgeHelp}"/><LineBreak/>
+                   <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc MediaResolution}"/><Run Text=":"/></Bold> <Run Text="{local:Loc MediaResolutionFilterHelp}"/><LineBreak/>
                   <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc ResetFilters}"/><Run Text=":"/></Bold> <Run Text="{local:Loc ResetFiltersHelp}"/>
                 </TextBlock>
               </StackPanel>
@@ -260,7 +267,7 @@
     </Border>
     <Border Grid.Row="2" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="12,12,12,4" Margin="0,0,0,12">
       <DockPanel>
-        <TextBlock x:Name="MediaCountText" DockPanel.Dock="Right" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+        <TextBlock x:Name="MediaCountText" DockPanel.Dock="Right" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="4,0,0,8"/>
         <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
           <ComboBox x:Name="MediaPeopleFilter" Width="180" SelectionChanged="MediaFilter_Changed" ToolTip="{local:Loc MediaPeopleFilterHelp}" Margin="0,0,8,8">
             <ComboBoxItem Content="{local:Loc AllPeopleResults}" Tag="All" IsSelected="True"/>
@@ -283,6 +290,11 @@
             <TextBlock x:Name="MediaAgeLabel" Text="{local:Loc AnyAge}" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="4,0,0,0" MinWidth="75"/>
           </StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,0,10,8" VerticalAlignment="Center">
+            <TextBlock Text="{local:Loc MediaResolution}" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="2,0,6,0"/>
+            <Slider x:Name="MediaResolutionSlider" Minimum="-9" Maximum="9" Value="0" Width="95" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="MediaFilter_SliderChanged" VerticalAlignment="Center" ToolTip="{local:Loc MediaResolutionFilterHelp}"/>
+            <TextBlock x:Name="MediaResolutionLabel" Text="{local:Loc AnyResolution}" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="4,0,0,0" MinWidth="75"/>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Margin="0,0,10,8" VerticalAlignment="Center">
             <TextBlock Text="{local:Loc TileSize}" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="2,0,6,0"/>
             <Slider x:Name="MediaTileZoom" Minimum="120" Maximum="280" Value="180" Width="95" TickFrequency="20" IsSnapToTickEnabled="True" ValueChanged="MediaTileZoom_Changed" VerticalAlignment="Center" ToolTip="{local:Loc TileSizeHelp}"/>
             <TextBlock x:Name="MediaTileZoomLabel" Text="180 px" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="4,0,0,0" MinWidth="48"/>
@@ -293,6 +305,9 @@
     </Border>
     <Border Grid.Row="3" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="18" Padding="8">
       <Grid>
+      <Border x:Name="MediaLoadPreviousPanel" Panel.ZIndex="5" VerticalAlignment="Top" Background="#F0162233" BorderBrush="#5A69B7FF" BorderThickness="1" CornerRadius="10" Padding="8,5" Margin="12,8,12,0" Visibility="Collapsed">
+        <Button x:Name="MediaLoadPreviousButton" Click="MediaLoadPrevious_Click" Content="{local:Loc LoadPreviousBatch}" Padding="14,7" HorizontalAlignment="Center" Background="#1F69B7FF" ToolTip="{local:Loc LoadPreviousBatchHelp}"/>
+      </Border>
       <ListBox x:Name="MediaTileList" SelectionMode="Extended" Background="Transparent" BorderThickness="0" Tag="{Binding ElementName=MediaTileZoom, Path=Value}" SelectionChanged="MediaTile_Selected" MouseDoubleClick="MediaTile_DoubleClick" PreviewMouseRightButtonDown="Finding_RightClick" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
         <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
         <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="5"/></Style></ListBox.ItemContainerStyle>
@@ -315,6 +330,9 @@
           </Border>
         </DataTemplate></ListBox.ItemTemplate>
       </ListBox>
+      <Border x:Name="MediaLoadNextPanel" Panel.ZIndex="5" VerticalAlignment="Bottom" Background="#F0162233" BorderBrush="#5A69B7FF" BorderThickness="1" CornerRadius="10" Padding="8,5" Margin="12,0,12,8" Visibility="Collapsed">
+        <Button x:Name="MediaLoadNextButton" Click="MediaLoadNext_Click" Content="{local:Loc LoadNextBatch}" Padding="14,7" HorizontalAlignment="Center" Background="#1F69B7FF" ToolTip="{local:Loc LoadNextBatchHelp}"/>
+      </Border>
       <Border x:Name="MediaLoadingPanel" Background="#E6121722" CornerRadius="12" Visibility="Collapsed" IsHitTestVisible="False"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="300"><ProgressBar x:Name="MediaLoadingProgress" Height="7" IsIndeterminate="True"/><TextBlock x:Name="MediaLoadingText" Text="{local:Loc MediaLoading}" Style="{StaticResource MutedText}" HorizontalAlignment="Center" Margin="0,10,0,0"/></StackPanel></Border>
       <TextBlock x:Name="MediaEmptyPanel" Text="{local:Loc MediaEmpty}" Style="{StaticResource MutedText}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" Visibility="Collapsed"/>
       </Grid>
