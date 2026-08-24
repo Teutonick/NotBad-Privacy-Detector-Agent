@@ -23,6 +23,33 @@ NotBad Privacy Detector Agent собирает эти следы вместе, �
 - **Сообщай о промахах без лишнего риска.** Сначала посмотри обезличенный отчёт о неточном определении и только потом реши, открывать ли GitHub.
 - **По-настоящему локальный и переносимый.** Без аккаунта, телеметрии, облачного анализа, установщика, фоновой службы и автозапуска.
 
+### Как это выглядит
+
+<p align="center">
+  <img src="docs/assets/readme-audit-overview.png" alt="Общий экран аудита NotBad Privacy Detector Agent" width="960">
+</p>
+<p align="center"><em>Обзор аудита: выбери область проверки и посмотри результаты, сгруппированные по категориям приватности.</em></p>
+
+<p align="center">
+  <img src="docs/assets/readme-findings-pii-secrets.png" alt="Находки PII и секретов в NotBad Privacy Detector Agent" width="960">
+</p>
+<p align="center"><em>Находки: изучай персональные данные и возможные секреты с риском, основаниями, фильтрами и локальным ИИ-приоритетом.</em></p>
+
+<p align="center">
+  <img src="docs/assets/readme-media-people-search.png" alt="Поиск людей в NotBad Privacy Detector Agent" width="960">
+</p>
+<p align="center"><em>Поиск людей: находи лица на изображениях с помощью модели, которая работает локально на твоём компьютере.</em></p>
+
+<p align="center">
+  <img src="docs/assets/readme-media-document-scan.png" alt="Сканирование документов в NotBad Privacy Detector Agent" width="960">
+</p>
+<p align="center"><em>Сканирование документов: выявляй фотографии документов и следы удостоверяющих документов для осознанной проверки.</em></p>
+
+<p align="center">
+  <img src="docs/assets/readme-application-history.png" alt="История приложений в NotBad Privacy Detector Agent" width="960">
+</p>
+<p align="center"><em>История приложений: изучай пути файлов, которые запомнили приложения Windows, включая отсутствующие и чувствительные совпадения.</em></p>
+
 ## ✨ ИИ-приоритет — настроен тобой
 
 Приоритеты приватности у каждого свои. Ставь находкам 👍 или 👎, и необязательная модель, которая обучается локально на твоих оценках, поймёт, что с большей вероятностью заслуживает именно **твоего** внимания.

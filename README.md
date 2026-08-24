@@ -23,6 +23,33 @@ NotBad Privacy Detector Agent brings those traces together, explains the risk an
 - **Report misses without exposing yourself.** Preview a privacy-safe, anonymized incorrect-detection report before choosing whether to open GitHub.
 - **Truly local and portable.** No account, telemetry, cloud inference, installer, background service or autostart entry.
 
+### See it in action
+
+<p align="center">
+  <img src="docs/assets/readme-audit-overview.png" alt="NotBad Privacy Detector Agent audit overview" width="960">
+</p>
+<p align="center"><em>Audit overview: choose the scan scope and see the results grouped by privacy-relevant category.</em></p>
+
+<p align="center">
+  <img src="docs/assets/readme-findings-pii-secrets.png" alt="NotBad Privacy Detector Agent findings for PII and secrets" width="960">
+</p>
+<p align="center"><em>Findings: review personal data and potential secrets with risk, evidence, filters and local AI priority.</em></p>
+
+<p align="center">
+  <img src="docs/assets/readme-media-people-search.png" alt="NotBad Privacy Detector Agent people search" width="960">
+</p>
+<p align="center"><em>People search: detect faces in found images using a model that runs locally on your computer.</em></p>
+
+<p align="center">
+  <img src="docs/assets/readme-media-document-scan.png" alt="NotBad Privacy Detector Agent document scan" width="960">
+</p>
+<p align="center"><em>Document scan: surface document photos and identity-document traces for deliberate review.</em></p>
+
+<p align="center">
+  <img src="docs/assets/readme-application-history.png" alt="NotBad Privacy Detector Agent application history" width="960">
+</p>
+<p align="center"><em>Application history: inspect file paths remembered by Windows applications, including missing and sensitive matches.</em></p>
+
 ## ✨ AI Priority — tuned by you
 
 Your privacy priorities are personal. Rate findings with 👍 or 👎, and an optional model trained locally on your feedback learns what is more likely to deserve **your** attention.
