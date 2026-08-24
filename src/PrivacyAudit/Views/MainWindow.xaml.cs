@@ -825,9 +825,11 @@ public partial class MainWindow : Window
         CategoryFilter.Items.Add(new ComboBoxItem { Content = LocalizationService.Get("ConfigsFilter"), Tag = "Configs" });
         CategoryFilter.Items.Add(new ComboBoxItem { Content = LocalizationService.Get("IdentityFilter"), Tag = "Identity" });
 
-        foreach (var c in _findings.Select(x => x.Category).Distinct().Order())
+        var categories = _findings.Select(x => x.Category).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (_findings.Any(x => ArchiveInspector.IsSupportedArchive(x.Path)) && !categories.Contains("Archives", StringComparer.OrdinalIgnoreCase)) categories.Add("Archives");
+        foreach (var c in categories.Order())
         {
-            CategoryFilter.Items.Add(new ComboBoxItem { Content = c, Tag = c, ToolTip = c == "Jump Lists" ? LocalizationService.Get("JumpListsHelp") : null });
+            CategoryFilter.Items.Add(new ComboBoxItem { Content = c == "Archives" ? LocalizationService.Get("ArchivesFilter") : c, Tag = c, ToolTip = c == "Jump Lists" ? LocalizationService.Get("JumpListsHelp") : c == "Archives" ? LocalizationService.Get("ArchivesScanHelp") : null });
         }
 
         var toSelect = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == selectedTag) ?? CategoryFilter.Items.OfType<ComboBoxItem>().First();
@@ -1859,8 +1861,8 @@ public partial class MainWindow : Window
 
             SaveCurrentSnapshot();
             RebuildCategories();
-            var allItem = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == "All");
-            if (allItem is not null) CategoryFilter.SelectedItem = allItem;
+            var archivesItem = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == "Archives");
+            if (archivesItem is not null) CategoryFilter.SelectedItem = archivesItem;
             RefreshFindingsPage(true);
             BuildDashboard();
 

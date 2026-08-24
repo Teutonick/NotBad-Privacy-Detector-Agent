@@ -48,6 +48,8 @@ public sealed class CoreTests
         Assert.Equal("Обзор", LocalizationService.Get("NavOverview", new CultureInfo("ru-RU")));
         Assert.Equal("Overview", LocalizationService.Get("NavOverview", new CultureInfo("en-US")));
         Assert.Equal("Overview", LocalizationService.Get("NavOverview", new CultureInfo("de-DE")));
+        Assert.Equal("Инспекция архивов", LocalizationService.Get("ArchivesFilter", new CultureInfo("ru-RU")));
+        Assert.Equal("Archive inspection", LocalizationService.Get("ArchivesFilter", new CultureInfo("en-US")));
     }
 
     [Fact]
