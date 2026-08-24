@@ -1,5 +1,7 @@
 # Building
 
+Documentation ownership is defined in [PROJECT_MAP.md](PROJECT_MAP.md#documentation-boundaries). Build and packaging details belong here; README keeps only the product overview and a link to this guide.
+
 Requirements: Windows 10/11 x64 and .NET 8 SDK.
 
 The application project is `src\PrivacyAudit\PrivacyAudit.csproj`; `PrivacyAudit.sln` also includes the test project. Build, test, publish, and test-result directories are generated locally and excluded from source control.

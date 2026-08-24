@@ -1,5 +1,7 @@
 # Testing
 
+Documentation ownership is defined in [PROJECT_MAP.md](PROJECT_MAP.md#documentation-boundaries). This file is the canonical source for verification scope and release gates; README links here without reproducing individual test or script mechanics.
+
 Required release command:
 
 ```powershell

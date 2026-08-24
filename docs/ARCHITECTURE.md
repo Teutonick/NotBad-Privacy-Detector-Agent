@@ -1,5 +1,7 @@
 # Architecture — NotBad Privacy Detector Agent
 
+For documentation ownership and README scope, see [Project map — Documentation boundaries](PROJECT_MAP.md#documentation-boundaries). This document is the canonical home for runtime behavior, implementation mechanics and component contracts; product-level summaries link here instead of duplicating these details.
+
 ## Privacy-safe diagnostic reporting
 
 Incorrect-detection reporting is opt-in and remains local until the operating system opens the browser. The Core `DiagnosticReportBuilder` produces minimal Markdown; no network client or GitHub API is present. Only after the mandatory preview and explicit confirmation does the app open a GitHub `issues/new` URL. GitHub still requires the user to publish the public Issue.

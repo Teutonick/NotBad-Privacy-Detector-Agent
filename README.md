@@ -1,86 +1,75 @@
 # NotBad Privacy Detector Agent
 
-PrivacyAudit can prepare an anonymized incorrect-detection report from any finding. It builds and previews the report locally, strips identifying path components and exact technical values, and only then opens a pre-filled public GitHub Issue when explicitly requested. Nothing is uploaded automatically.
-
-Only one application instance is allowed per computer. When a previous audit is restored, the window opens first and shows staged progress while the snapshot is loaded asynchronously.
-
 [Русская версия](README.ru.md)
 
 > **Find what you forgot — before someone else does.**
 
-NotBad Privacy Detector Agent is a portable, local-first Windows tool for digital archaeology. It maps forgotten layers of a PC — personal data, secrets, credentials, old application traces, archives, photos, metadata and copies — and explains why each finding deserves attention.
+NotBad Privacy Detector Agent is a portable, local-first privacy scanner for Windows. It turns forgotten files, personal data, secrets, application traces and revealing metadata into a clear map of what deserves your attention — without sending your digital life to the cloud.
 
 ![NotBad Privacy Detector Agent demo](docs/assets/notbad-privacy-demo.gif)
 
-## Why it is different
+## Your PC remembers more than you do
 
-Most cleaners ask what can be deleted. NotBad Privacy Detector Agent asks a more useful question: **what is here, how exposed is it, and where did it come from?**
+Old documents. API keys in abandoned configs. Photos with GPS. Copies buried in archives. Application histories that still point to files you thought were gone.
 
-- **Understand, do not guess.** Every finding keeps its path, category, scanner, score and evidence.
-- **Investigate on demand.** File Provenance Analyzer runs only when you request it for one object; it is never added to a mass scan.
-- **Adapt locally.** Optional personal AI recommendations learn from your 👍/👎 ratings using only features PrivacyAudit already calculated.
-- **Stay private.** Audits, ratings, provenance and model files remain on this PC. There is no account, telemetry, cloud inference or background service.
-- **Portable by design.** The EXE does not install itself or add startup entries. Delete the EXE manually when you are finished.
+NotBad Privacy Detector Agent brings those traces together, explains the risk and helps you decide what matters. It is an auditor and detector — you stay in control of every action.
 
-### Application file history
+## Highlights
 
-Windows Jump List containers appear in an aggregated **Application history** workspace, not as hundreds of dangerous files. The workspace becomes available after an audit. **Analyze application history** parses Automatic/Custom Destinations on demand, merges known AppIDs into applications, hides empty groups, preserves Cyrillic ANSI/Unicode paths, and matches remembered objects with current findings. The default filter focuses on audit findings; availability, menu pinning, risk, size, age and search filters expose more history, with each option explained in the workspace legend. Each remembered object can be rated with 👍/👎 and scored by the same local personal-recommendation model using history-specific metadata; AI sorting ranks both objects and applications, while an application score is derived from its strongest objects rather than a broad container label. Files support Details/open/folder/recycle-bin/copy-path actions; a temporarily busy Windows clipboard is retried on a background STA thread and reported in the status line instead of blocking or crashing the UI. Folders open directly, and missing targets remain read-only historical paths. The parser and recommendations use no online AppID directory and send nothing outside the computer.
+- **Digital archaeology in one place.** Discover personal data, credentials, forgotten application traces, sensitive archives, media metadata and duplicates across the PC.
+- **Risk you can understand.** Findings come with evidence and context, so a scary score is never the whole explanation.
+- **Discover where it came from.** Investigate a selected file's likely origin and connections to local software without turning the audit into guesswork.
+- **See what applications remember.** Explore Windows application history as meaningful apps and remembered objects instead of a wall of cryptic system containers.
+- **Report misses without exposing yourself.** Preview a privacy-safe, anonymized incorrect-detection report before choosing whether to open GitHub.
+- **Truly local and portable.** No account, telemetry, cloud inference, installer, background service or autostart entry.
 
-Incorrect-detection reports require a plain-language explanation of what is wrong. The preview puts that request at the top and pre-fills `privacy-audit`, `incorrect-detection`, and correction-type labels in the GitHub issue URL for later sorting; publication remains an explicit user action.
+## ✨ AI Priority — tuned by you
 
-## What it can reveal
+Your privacy priorities are personal. Rate findings with 👍 or 👎, and an optional model trained locally on your feedback learns what is more likely to deserve **your** attention.
 
-- personal data: names, emails, strict-format phones, addresses, explicit Telegram links and validated identifiers;
-- secrets and credentials: known API-token formats, explicit key assignments, JWTs, private keys, connection strings and strict mixed-case ASCII entropy candidates;
-- application leftovers: profiles, sessions, caches, history, logs, configuration and possible orphaned data;
-- media exposure: GPS/EXIF, camera serials, document photos requiring combined paper/text/geometry evidence, faces and people indicators;
-- archives and duplicates: sensitive files inside ZIP/JAR/APK-style containers, similar documents and images;
-- Windows traces: Recent items, Jump Lists, bounded filesystem areas and other local exposure surfaces;
-- provenance evidence: application mappings, formats, neighboring files, Registry correlations and available forensic traces.
+**✨ AI Priority** brings those recommendations to the top across findings, media and remembered application objects. Your ratings and model stay on your PC, and the recommendation remains a separate personal signal — it never replaces the product's evidence-based risk scores.
 
-## A simple workflow
+[See how the personal recommendation model works](docs/PERSONAL_MODEL_USER_DESCRIPTION.md).
 
-1. Choose **Quick**, **Full** or **Custom** scan.
-2. Review findings by risk, category, age, size or **✨ AI priority**.
-3. Open Details to see scores, evidence and existing scanner results — without re-reading the file just to train a model. Use the back-arrow button or your mouse's browser-style Back button to return to the same list and scroll position.
-4. For a file that needs context, choose **Investigate provenance**. The result is cached locally and reused until the file changes.
-5. Rate findings with 👍 or 👎. After enough balanced ratings, the local recommendation model learns what you personally tend to care about.
+## What it can uncover
 
-When you stop a large audit, cancellation is requested asynchronously so the interface stays responsive. A dedicated indeterminate progress bar shows that the scanner is still unwinding; the partial report is kept when cancellation completes.
+- personal identifiers, contacts and sensitive document traces;
+- API tokens, private keys, connection strings and forgotten credentials;
+- application profiles, sessions, caches, histories and orphaned data;
+- GPS/EXIF metadata, camera details, document photos and people indicators;
+- sensitive files hidden inside archives and similar copies spread across folders;
+- Windows Recent and application-history traces that can resurface during everyday work or screen sharing.
 
-Archive contents are inspected only after choosing **Inspect archives**. This keeps the normal audit lightweight; inspected archives remain in the findings list with their sensitive-entry severity.
+## Three steps to clarity
 
-## Local AI recommendations
+1. Run a **Quick**, **Full** or **Custom** audit.
+2. Review the most exposed or personally relevant findings.
+3. Open Details when you need evidence, provenance or a deliberate next action.
 
-This is one small CPU-only ML.NET binary classifier, not a pretrained neural network. It reads only already-calculated numeric and categorical audit features (for example exposure, age, category, PII/secret indicators, EXIF/GPS and similarity counts). It never uploads ratings, vectors or model weights, and it never replaces Exposure, Personal Data, Secret or Archive Privacy scores. A model is trained only after the minimum balanced feedback is available and is invalidated automatically when the feature schema changes.
+The app does not decide what you should delete. File actions are explicit and separately confirmed.
 
-## Privacy and safety boundaries
+> [!WARNING]
+> **AS IS — USE AT YOUR OWN RISK.** The software is provided without warranties. The developer and contributors are not liable for data loss, data corruption, system damage, financial loss or any other direct or indirect consequences arising from use or inability to use the software. You are responsible for your decisions, permissions and backups. Read the full [Disclaimer](DISCLAIMER.md) and [MIT License](LICENSE) before use.
 
-- normal scans are offline; network access happens only after an explicit action such as downloading the optional YuNet model or opening a browser link;
-- Windows Recent may contain real `.lnk` artifacts whose original target was deleted. The audit labels these stale shortcuts explicitly; it does not claim that the deleted target still exists.
-- no Windows service, scheduled task, startup entry, tray worker or persistent analysis process;
-- junctions/reparse points are not followed by default;
-- SQLite stores metadata and findings, not arbitrary file contents;
-- no automatic deletion of user files or Registry changes; any Recycle Bin action is explicit and separately confirmed;
-- cleanup controls remove only application-owned data and clearly explain the scope before countdown confirmation.
+## Private by design
+
+- normal audits and personal recommendations run locally;
+- file paths, findings, ratings and model data are not uploaded;
+- SQLite stores audit metadata, not arbitrary file contents;
+- junctions and reparse points are not followed by default;
+- the app does not change Registry, Defender, Windows Search or system services;
+- optional network actions, such as downloading the people-detection model or opening a browser link, require an explicit user action.
+
+See the full [Privacy Policy](PRIVACY.md), [Security Policy](SECURITY.md) and [Disclaimer](DISCLAIMER.md).
 
 ## Download and run
 
-Download the latest portable `NotBadPrivacyDetectorAgent.exe` from Releases, place it in a folder you control, and run it. No installer is required. Standard mode is enough for user-accessible locations; **Restart with administrator rights** can be used when you explicitly want to inspect protected system areas.
+Download the latest portable `NotBadPrivacyDetectorAgent.exe` from Releases, place it in a folder you control and run it. No installer is required. Standard mode is enough for user-accessible locations; restart with administrator rights only when you explicitly want to inspect protected system areas.
 
-## Build and package locally
+## Documentation
 
-Product code lives under `src/PrivacyAudit`, tests under `tests/PrivacyAudit.Tests`, and release automation under `scripts`. Generated `bin`, `obj`, `artifacts`, and `dist` content is intentionally excluded from Git.
+README is the product overview. Implementation details, component contracts and development notes live in the linked engineering documents:
 
-```powershell
-.\scripts\verify.ps1
-.\scripts\package-release.ps1
-```
+[Project map](docs/PROJECT_MAP.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing](docs/TESTING.md) · [Building from source](docs/BUILDING.md) · [Personal recommendation model](docs/PERSONAL_MODEL_USER_DESCRIPTION.md)
 
-The first command runs tests, publishes the single-file EXE and performs a startup/exit smoke test. The second creates a compact versioned ZIP containing only the portable EXE, runtime/legal documents, third-party license files and a SHA-256 manifest. Project documentation and demo media remain in the source repository.
-
-## Documentation and legal
-
-[Project map](docs/PROJECT_MAP.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing](docs/TESTING.md) · [Building](docs/BUILDING.md) · [Privacy policy](PRIVACY.md) · [Security](SECURITY.md) · [Disclaimer](DISCLAIMER.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
-
-NotBad Privacy Detector Agent is distributed under the [MIT License](LICENSE). Third-party components and their licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+NotBad Privacy Detector Agent is distributed under the [MIT License](LICENSE). Third-party components and their licenses are listed in [Third-Party Notices](THIRD_PARTY_NOTICES.md).

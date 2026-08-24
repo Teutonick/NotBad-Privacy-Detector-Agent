@@ -1,5 +1,20 @@
 # Project map — NotBad Privacy Detector Agent
 
+## Documentation boundaries
+
+`README.md` and `README.ru.md` are synchronized product-facing entry points. They prioritize the product promise, major differentiators, a short end-user workflow, privacy/safety boundaries, download guidance and links to deeper material. README mentions only major user-visible capabilities in concise product language; it does not catalog individual controls, event handlers, threading details, parser rules, schemas, thresholds or implementation history.
+
+Engineering and AI/vibecoding notes belong under `docs/` and must link to their related documents:
+
+- `PROJECT_MAP.md` owns repository layout, component ownership, navigation/workspace inventory and file-level routing;
+- `ARCHITECTURE.md` owns runtime behavior, data flow, algorithms, lifecycle, UI mechanics and component contracts;
+- `TESTING.md` owns verification scope and release gates;
+- `BUILDING.md` owns build and packaging instructions;
+- `PERSONAL_MODEL_USER_DESCRIPTION.md` owns the canonical bilingual explanation of personal recommendations;
+- root privacy, security, disclaimer and license documents own their respective user/legal guarantees.
+
+When a feature changes, update its low-level canonical document first and add or revise README copy only when the change is a major product-level differentiator. Cross-link related low-level documents instead of duplicating long explanations.
+
 ## Anonymous incorrect-detection reports
 
 The Details page exposes an **Anonymized report for GitHub** action for every `Finding`, including files, directories, text findings, and media. `IncorrectDetectionDialog` explains the local-only flow and requires a preview before opening a pre-filled public GitHub Issue. `src/PrivacyAudit/Core/DiagnosticReportBuilder.cs` replaces paths with shapes, buckets size and score, allows only categorical identifiers, and never consumes raw scanner `MetadataJson`.
