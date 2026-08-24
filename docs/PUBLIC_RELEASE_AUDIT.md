@@ -10,7 +10,7 @@ The public source tree uses a conventional `src/PrivacyAudit`, `tests`, `scripts
 
 ## Controls verified
 
-1. **Licenses and distribution documents** — direct and transitive runtime packages from `project.assets.json` are represented in `THIRD_PARTY_NOTICES.md`; the release script copies package license files/NuGet manifests and .NET notices. Optional YuNet is MIT and SHA-256 pinned. ImageSharp 3.1.12 uses the Six Labors Split License; its Apache-2.0 grant applies while this project is distributed as MIT open source.
+1. **Licenses and distribution documents** — the compact release ZIP contains the EXE, root `LICENSE`, `PRIVACY.md`, `SECURITY.md`, `DISCLAIMER.md`, `THIRD_PARTY_NOTICES.md`, package license files/NuGet manifests and .NET notices. Project documentation and demo media are source-only and are not duplicated into the binary distribution. Optional YuNet is MIT and SHA-256 pinned. ImageSharp 3.1.12 uses the Six Labors Split License; its Apache-2.0 grant applies while this project is distributed as MIT open source.
 2. **Network boundary** — audits, detectors, SQLite, similarity, and personal ML are offline. The only download is explicit YuNet + license retrieval from pinned GitHub URLs. Repository/author URLs open only after user clicks.
 3. **Process lifecycle** — no service, tray icon, autostart, scheduler task, shell extension, or child analysis process exists. Close cancels all in-process work; packaged smoke-test asserts the process and children terminate.
 4. **Writes** — application-owned persistent writes are limited to `%LOCALAPPDATA%\NotBadPrivacyDetectorAgent`. A self-contained .NET single-file runtime can additionally use its OS-managed temporary native-bundle extraction cache. Build/test artifacts stay in the source workspace and are not created by the distributed app.
@@ -19,4 +19,4 @@ The public source tree uses a conventional `src/PrivacyAudit`, `tests`, `scripts
 
 ## Release gate
 
-Run `scripts\package-release.ps1`. It must complete `verify.ps1`, tests, self-contained single-file publish, startup/termination smoke-test, document collection, license collection, ZIP creation, and SHA-256 generation.
+Run `scripts\package-release.ps1`. It must complete `verify.ps1`, tests, self-contained single-file publish, startup/termination smoke-test, compact runtime/legal document collection, license collection, ZIP creation, and SHA-256 generation.

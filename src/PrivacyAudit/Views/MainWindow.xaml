@@ -350,7 +350,7 @@
         <Button Click="ApplicationHistoryResetFilters_Click" Content="{local:Loc ResetFilters}" Padding="12,7" Margin="0,0,0,8" ToolTip="{local:Loc ResetFiltersHelp}"/>
       </WrapPanel>
     </Border>
-    <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto">
+    <ScrollViewer x:Name="ApplicationHistoryScrollViewer" Grid.Row="4" VerticalScrollBarVisibility="Auto">
       <ItemsControl x:Name="ApplicationHistoryList">
         <ItemsControl.ItemTemplate><DataTemplate><Expander Margin="0,0,0,10" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16">
           <Expander.Header><StackPanel><TextBlock Text="{Binding Identity.DisplayName, Mode=OneWay}" FontSize="16" FontWeight="SemiBold"/><TextBlock Foreground="#929AAA"><Run Text="{Binding Entries.Count, Mode=OneWay}"/><Run Text=" "/><Run Text="{local:Loc ApplicationHistoryObjects}"/><Run Text=" · "/><Run Text="{Binding MissingTargets, Mode=OneWay}"/><Run Text=" "/><Run Text="{local:Loc ApplicationHistoryMissing}"/><Run Text=" · "/><Run Text="{Binding SensitiveObjects, Mode=OneWay}"/><Run Text=" "/><Run Text="{local:Loc ApplicationHistorySensitive}"/><Run Text=" · "/><Run Text="{local:Loc PersonalModelShort}"/><Run Text=": "/><Run Text="{Binding PersonalAttentionDisplay, Mode=OneWay}"/></TextBlock></StackPanel></Expander.Header>

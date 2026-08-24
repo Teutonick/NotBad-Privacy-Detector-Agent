@@ -77,7 +77,7 @@ Product code lives under `src/PrivacyAudit`, tests under `tests/PrivacyAudit.Tes
 .\scripts\package-release.ps1
 ```
 
-The first command runs tests, publishes the single-file EXE and performs a startup/exit smoke test. The second creates a versioned ZIP containing the portable EXE, required project documents, license notices and SHA-256 manifest.
+The first command runs tests, publishes the single-file EXE and performs a startup/exit smoke test. The second creates a compact versioned ZIP containing only the portable EXE, runtime/legal documents, third-party license files and a SHA-256 manifest. Project documentation and demo media remain in the source repository.
 
 ## Documentation and legal
 

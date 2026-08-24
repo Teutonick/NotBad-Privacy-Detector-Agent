@@ -23,21 +23,10 @@ New-Item -ItemType Directory -Force -Path $releaseRoot, $packageRoot, $licenseRo
 try {
     $required = @(
         'LICENSE',
-        'README.md',
-        'README.ru.md',
         'PRIVACY.md',
         'SECURITY.md',
         'DISCLAIMER.md',
-        'THIRD_PARTY_NOTICES.md',
-        'docs\PRIVACY.md',
-        'docs\DISCLAIMER.md',
-        'docs\THIRD_PARTY_NOTICES.md',
-        'docs\PROJECT_MAP.md',
-        'docs\ARCHITECTURE.md',
-        'docs\TESTING.md',
-        'docs\BUILDING.md',
-        'docs\PUBLIC_RELEASE_AUDIT.md',
-        'docs\assets\notbad-privacy-demo.gif'
+        'THIRD_PARTY_NOTICES.md'
     )
     foreach ($relative in $required) {
         $source = Join-Path $workspace $relative

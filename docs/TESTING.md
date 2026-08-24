@@ -12,4 +12,4 @@ Coverage includes scoring, classification, age, localization fallback, exclusion
 
 Cleanup tests use a dedicated temporary fake local-app-data root. They verify that secondary cleanup preserves AI recommendations and ratings, full cleanup removes only the owned root, and foreign roots are rejected.
 
-`scripts\package-release.ps1` invokes the required verification first and then produces a versioned ZIP plus SHA-256 sidecar.
+`scripts\package-release.ps1` invokes the required verification first and then produces a compact versioned ZIP containing the portable EXE, runtime/legal documents, third-party license files and SHA-256 sidecar. Source-only project documentation and demo media are not copied into the ZIP.

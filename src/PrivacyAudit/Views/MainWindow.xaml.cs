@@ -74,6 +74,8 @@ public partial class MainWindow : Window
     CancellationTokenSource? _applicationHistoryCts;
     readonly ObservableCollection<ApplicationHistoryApplication> _applicationHistoryApplications = [];
     readonly ObservableRangeCollection<ApplicationHistoryApplication> _visibleApplicationHistoryApplications = [];
+    readonly HashSet<string> _expandedApplicationHistoryKeys = new(StringComparer.OrdinalIgnoreCase);
+    double _applicationHistoryScrollOffset;
     bool _auditAvailableForApplicationHistory;
     readonly System.Windows.Controls.ComboBox _driveBox = new() { Width = 330, Margin = new Thickness(0, 0, 0, 0), Visibility = Visibility.Collapsed };
     System.Windows.Controls.Button? _chooseButton;
@@ -545,7 +547,33 @@ public partial class MainWindow : Window
             if (entries.Length > 0) filteredApplications.Add(app with { Entries = entries });
         }
         if (sort == "AiPriority") filteredApplications = filteredApplications.OrderByDescending(x => x.PersonalAttentionScore ?? -1).ThenByDescending(x => x.Entries.Count).ToList();
+        CaptureApplicationHistoryViewState();
         _visibleApplicationHistoryApplications.ReplaceRange(filteredApplications);
+        _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(RestoreApplicationHistoryViewState));
+    }
+
+    void CaptureApplicationHistoryViewState()
+    {
+        if (ApplicationHistoryScrollViewer is not null)
+            _applicationHistoryScrollOffset = ApplicationHistoryScrollViewer.VerticalOffset;
+
+        _expandedApplicationHistoryKeys.Clear();
+        foreach (var expander in FindVisualChildren<Expander>(ApplicationHistoryList))
+        {
+            if (!expander.IsExpanded || expander.DataContext is not ApplicationHistoryApplication application) continue;
+            _expandedApplicationHistoryKeys.Add(application.Identity.AppId);
+        }
+    }
+
+    void RestoreApplicationHistoryViewState()
+    {
+        foreach (var expander in FindVisualChildren<Expander>(ApplicationHistoryList))
+        {
+            if (expander.DataContext is ApplicationHistoryApplication application &&
+                _expandedApplicationHistoryKeys.Contains(application.Identity.AppId))
+                expander.IsExpanded = true;
+        }
+        ApplicationHistoryScrollViewer?.ScrollToVerticalOffset(_applicationHistoryScrollOffset);
     }
 
     async Task ApplyApplicationHistoryPersonalStateAsync(CancellationToken token = default)
@@ -577,7 +605,6 @@ public partial class MainWindow : Window
         _db.SetPersonalFeedback($"history:{entry.ApplicationKey}", key, PersonalAttentionFeatureExtractor.Extract(entry, related, label ?? false), label);
         entry.PersonalAttentionLabel = label;
         UpdatePersonalModelStats();
-        RefreshApplicationHistoryFilter();
         var stats = _db.GetPersonalModelStats(_personalModel.Metadata?.TrainedSamples ?? 0);
         if (stats.CanTrain && (!_personalModel.IsReady || stats.Total - stats.TrainedSamples >= PersonalAttentionSchema.RetrainInterval))
             await TrainPersonalModelAsync();
