@@ -33,7 +33,7 @@ public static class FindingPagination
         return property switch
         {
             nameof(Finding.RiskLevel) => Apply(source, x => x.RiskLevel, descending),
-            nameof(Finding.ExposureScore) => Apply(source, x => x.ExposureScore, descending),
+            nameof(Finding.ExposureScore) => Apply(source, PrivacyRadarRanking.Score, descending),
             nameof(Finding.PersonalAttentionScore) => Apply(source, x => x.PersonalAttentionScore ?? -1, descending),
             nameof(Finding.Category) => Apply(source, x => x.Category, descending),
             nameof(Finding.DisplayName) => Apply(source, x => x.DisplayName, descending),

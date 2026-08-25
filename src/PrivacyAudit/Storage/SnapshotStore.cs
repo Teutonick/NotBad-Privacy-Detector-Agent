@@ -4,7 +4,14 @@ using PrivacyAudit.Core;
 
 namespace PrivacyAudit.Storage;
 
-public sealed record ScanSnapshot(DateTime SavedAtUtc, List<Finding> Findings);
+public sealed record AuditSnapshotContext(
+    ScanPreset Preset,
+    List<string> Roots,
+    DateTime StartedAtUtc,
+    DateTime CompletedAtUtc,
+    TimeSpan Duration);
+
+public sealed record ScanSnapshot(DateTime SavedAtUtc, List<Finding> Findings, AuditSnapshotContext? Context = null);
 
 public static class SnapshotStore
 {
@@ -12,7 +19,14 @@ public static class SnapshotStore
 
     public static string PathFor(string appDataDirectory) => System.IO.Path.Combine(appDataDirectory, "last-scan.json");
 
-    public static void Save(string path, DateTime savedAtUtc, IEnumerable<Finding> findings)
+    public static void Delete(string path)
+    {
+        if (File.Exists(path)) File.Delete(path);
+        var temporary = path + ".tmp";
+        if (File.Exists(temporary)) File.Delete(temporary);
+    }
+
+    public static void Save(string path, DateTime savedAtUtc, IEnumerable<Finding> findings, AuditSnapshotContext? context = null)
     {
         var materialized = findings.Take(StorageLimits.MaxSnapshotFindings + 1).ToList();
         if (materialized.Count > StorageLimits.MaxSnapshotFindings)
@@ -20,6 +34,7 @@ public static class SnapshotStore
         var document = new SnapshotDocument
         {
             SavedAtUtc = savedAtUtc,
+            Context = context,
             Findings = materialized.Select(ToSnapshot).ToList()
         };
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
@@ -38,7 +53,7 @@ public static class SnapshotStore
         var document = JsonSerializer.Deserialize<SnapshotDocument>(File.ReadAllText(path), Options);
         if (document is null) return null;
         progress?.Report("Restoring finding metadata…");
-        return new(document.SavedAtUtc, document.Findings.Select(FromSnapshot).ToList());
+        return new(document.SavedAtUtc, document.Findings.Select(FromSnapshot).ToList(), document.Context);
     }
 
     public static Task<ScanSnapshot?> LoadAsync(string path, IProgress<string>? progress = null) =>
@@ -63,6 +78,7 @@ public static class SnapshotStore
     sealed class SnapshotDocument
     {
         public DateTime SavedAtUtc { get; set; }
+        public AuditSnapshotContext? Context { get; set; }
         public List<SnapshotFinding> Findings { get; set; } = [];
     }
 

@@ -10,7 +10,11 @@ Reports include a structural path such as `USERPROFILE / directory / file.db`, e
 
 ## Startup and snapshot restore
 
-`App` acquires the named local mutex before constructing `MainWindow`; a second process shows a localized informational message and exits. `MainWindow` no longer deserializes the previous audit in its constructor. Once the window is visible it asks whether to restore an available snapshot, then calls `SnapshotStore.LoadAsync` on a worker thread. Progress stages are published to the existing global busy card and status line, while the tab workspace is disabled until the findings are indexed.
+`App` acquires the named local mutex before constructing `MainWindow`; a second process shows a localized informational message and exits. `MainWindow` never deserializes the previous audit in its constructor. After first render it automatically calls `SnapshotStore.LoadAsync` on a worker thread. Progress is shown in the existing busy indicators; tab navigation stays visible while interactive controls are temporarily read-only. The snapshot contains enriched finding metadata plus preset, roots, start/completion timestamps and duration. After indexing, Overview shows the current Privacy Radar summary (database size, audit type/scope/time, finding count and confirmed deep-analysis signals) instead of the new-scan form.
+
+**Start over** is a two-step transition: it first reveals the normal preset/scope controls without touching the current radar; only a valid click on Start removes the previous resumable snapshot and audit-result rows. Personal ratings, recommendation-model data and exclusions remain separate local knowledge. A completed replacement audit becomes the new radar automatically.
+
+`PrivacyRadarRanking` is the default evidence-aware ordering behind the Exposure column. It starts from the original exposure score, then adds bounded ranking weight for persisted confirmations such as PII, secrets, credentials, identity traces, sensitive archives, document/ID evidence, people and EXIF/GPS. Personal AI priority contributes a small independent tie-strengthening signal. The original exposure score and risk level remain unchanged and explainable; Radar priority affects ordering and is shown separately in Details.
 
 NotBad Privacy Detector Agent follows `SCAN → DETECT → CLASSIFY → SIMILARITY MATCH → REPORT`. It does not decide that a file is unnecessary and does not delete files automatically.
 

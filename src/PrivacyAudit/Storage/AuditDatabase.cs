@@ -96,4 +96,10 @@ public sealed class AuditDatabase
         tx.Commit();
     }
     public void DeleteDatabase() { using var c = new SqliteConnection(Cs); c.Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM findings; DELETE FROM scans; DELETE FROM exclusions;"; cmd.ExecuteNonQuery(); }
+    public void DeleteAuditResults()
+    {
+        using var c = new SqliteConnection(Cs); c.Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "DELETE FROM provenance_evidence; DELETE FROM file_provenance; DELETE FROM findings; DELETE FROM scans;";
+        cmd.ExecuteNonQuery();
+    }
 }

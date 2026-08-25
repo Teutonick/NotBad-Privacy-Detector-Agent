@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     readonly PeopleScanRepository _peopleRepository;
     readonly PersonalAttentionModelService _personalModel;
     readonly AppDataCleanupService _cleanupService;
+    readonly string _databasePath;
     readonly string _snapshotPath;
     readonly string _introShownPath;
     CancellationTokenSource? _cts;
@@ -91,6 +92,8 @@ public partial class MainWindow : Window
     readonly object _heavyTaskLock = new();
     string? _activeHeavyTaskName;
     int _activeMediaTaskCount;
+    AuditSnapshotContext? _auditContext;
+    bool _newAuditSettingsVisible;
 
     sealed class ActionDisposable(Action action) : IDisposable
     {
@@ -259,10 +262,11 @@ public partial class MainWindow : Window
             }
         };
         var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NotBadPrivacyDetectorAgent");
-        _db = new(Path.Combine(data, "privacy-audit.db"));
+        _databasePath = Path.Combine(data, "privacy-audit.db");
+        _db = new(_databasePath);
         try { _db.PruneAuditHistory(DateTime.UtcNow - StorageLimits.AuditRetention); } catch (Exception ex) { CrashLogger.LogException(ex, "Retention cleanup"); }
         _modelManager = new(data);
-        _peopleRepository = new(Path.Combine(data, "privacy-audit.db"));
+        _peopleRepository = new(_databasePath);
         _personalModel = new(data);
         _cleanupService = new(data);
         _snapshotPath = SnapshotStore.PathFor(data);
@@ -369,14 +373,13 @@ public partial class MainWindow : Window
 
     async Task TryRestoreSnapshotAsync()
     {
-        if (!File.Exists(_snapshotPath)) return;
-        var info = new FileInfo(_snapshotPath);
-        var prompt = string.Format(LocalizationService.Get("RestoreSnapshotAvailablePrompt"), info.LastWriteTime.ToString("g"), Format.Bytes(info.Length));
-        if (System.Windows.MessageBox.Show(prompt, LocalizationService.Get("AppTitle"), System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question, System.Windows.MessageBoxResult.No) != System.Windows.MessageBoxResult.Yes) return;
+        if (!File.Exists(_snapshotPath)) { ShowNewAuditSettings(); return; }
 
         using var busy = TryAcquireHeavyTask(LocalizationService.Get("SnapshotRestoring"));
         if (busy is null) return;
-        MainTabs.IsEnabled = false;
+        SetRestoreReadOnly(true);
+        Busy.Visibility = Visibility.Visible;
+        StatusText.Text = LocalizationService.Get("SnapshotAutoRestoring");
         try
         {
             var progress = new Progress<string>(stage =>
@@ -385,22 +388,79 @@ public partial class MainWindow : Window
                 SidebarFooterControl.SetGlobalBusy(true, stage);
             });
             var snapshot = await SnapshotStore.LoadAsync(_snapshotPath, progress);
-            if (snapshot is null || snapshot.Findings.Count == 0) return;
+            if (snapshot is null || snapshot.Findings.Count == 0) { ShowNewAuditSettings(); return; }
             StatusText.Text = string.Format(LocalizationService.Get("SnapshotIndexing"), snapshot.Findings.Count);
             SidebarFooterControl.SetGlobalBusy(true, StatusText.Text);
             _findings.Clear();
             _findings.AddRange(snapshot.Findings);
+            _auditContext = snapshot.Context;
             _auditAvailableForApplicationHistory = true;
             RefreshApplicationHistorySummary();
-            _mediaFindings.AddRange(snapshot.Findings.Where(x => x.Category == "Images" && File.Exists(x.Path)).OrderByDescending(x => x.ModifiedAt ?? DateTime.MinValue));
+            _mediaFindings.Clear();
+            _mediaFindings.AddRange(snapshot.Findings.Where(x => x.Category == "Images" && File.Exists(x.Path)).OrderByDescending(PrivacyRadarRanking.Score).ThenByDescending(x => x.ModifiedAt ?? DateTime.MinValue));
+            ApplyPersonalState();
             UpdatePeoplePresentation();
             BuildDashboard();
             RebuildCategories();
             RefreshFindingsPage(true);
+            ShowPreviousAuditSummary(snapshot);
             StatusText.Text = string.Format(LocalizationService.Get("SnapshotLoaded"), snapshot.Findings.Count);
         }
-        catch (Exception ex) { StatusText.Text = LocalizationService.Get("SnapshotUnavailable"); CrashLogger.LogException(ex, "Restore snapshot"); }
-        finally { MainTabs.IsEnabled = true; }
+        catch (Exception ex) { ShowNewAuditSettings(); StatusText.Text = LocalizationService.Get("SnapshotUnavailable"); CrashLogger.LogException(ex, "Restore snapshot"); }
+        finally { Busy.Visibility = Visibility.Collapsed; SetRestoreReadOnly(false); }
+    }
+
+    void SetRestoreReadOnly(bool readOnly)
+    {
+        foreach (var element in FindVisualChildren<FrameworkElement>(MainTabs))
+        {
+            if (element is System.Windows.Controls.Button or System.Windows.Controls.ComboBox or System.Windows.Controls.Slider or System.Windows.Controls.TextBox or System.Windows.Controls.ListBox or System.Windows.Controls.DataGrid)
+                element.IsHitTestVisible = !readOnly;
+        }
+        if (readOnly) StatusText.Text = LocalizationService.Get("SnapshotReadOnly");
+    }
+
+    void ShowPreviousAuditSummary(ScanSnapshot snapshot)
+    {
+        _newAuditSettingsVisible = false;
+        ScanSettingsPanel.Visibility = Visibility.Collapsed;
+        PreviousAuditPanel.Visibility = Visibility.Visible;
+        ScanButton.Visibility = Visibility.Collapsed;
+        ReturnToPreviousAuditButton.Visibility = Visibility.Collapsed;
+        var databaseSize = File.Exists(_databasePath) ? new FileInfo(_databasePath).Length : 0;
+        var context = snapshot.Context;
+        PreviousAuditDatabaseText.Text = string.Format(LocalizationService.Get("PreviousAuditDatabase"), Format.Bytes(databaseSize));
+        PreviousAuditTypeText.Text = string.Format(LocalizationService.Get("PreviousAuditType"), LocalizedPreset(context?.Preset));
+        PreviousAuditPathText.Text = string.Format(LocalizationService.Get("PreviousAuditPath"), context is { Roots.Count: > 0 } ? string.Join("; ", context.Roots) : LocalizationService.Get("UnknownAuditScope"));
+        PreviousAuditTimeText.Text = string.Format(LocalizationService.Get("PreviousAuditTime"), (context?.CompletedAtUtc ?? snapshot.SavedAtUtc).ToLocalTime().ToString("g"), context?.Duration.ToString("hh\\:mm\\:ss") ?? "—");
+        PreviousAuditFindingsText.Text = string.Format(LocalizationService.Get("PreviousAuditFindings"), snapshot.Findings.Count);
+        var enriched = snapshot.Findings.Where(x => PrivacyRadarRanking.ConfirmedSignals(x) > 0).ToArray();
+        PreviousAuditEnrichmentText.Text = string.Format(LocalizationService.Get("PreviousAuditEnrichment"), enriched.Sum(PrivacyRadarRanking.ConfirmedSignals), enriched.Length);
+    }
+
+    static string LocalizedPreset(ScanPreset? preset) => preset switch
+    {
+        ScanPreset.Quick => LocalizationService.Get("PresetQuick"),
+        ScanPreset.Full => LocalizationService.Get("PresetFull"),
+        ScanPreset.Custom => LocalizationService.Get("PresetCustom"),
+        _ => LocalizationService.Get("UnknownAuditType")
+    };
+
+    void ShowNewAuditSettings()
+    {
+        _newAuditSettingsVisible = true;
+        PreviousAuditPanel.Visibility = Visibility.Collapsed;
+        ScanSettingsPanel.Visibility = Visibility.Visible;
+        ScanButton.Visibility = Visibility.Visible;
+        ReturnToPreviousAuditButton.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    void StartOver_Click(object sender, RoutedEventArgs e) => ShowNewAuditSettings();
+
+    void ReturnToPreviousAudit_Click(object sender, RoutedEventArgs e)
+    {
+        if (_findings.Count == 0) return;
+        ShowPreviousAuditSummary(new ScanSnapshot(_auditContext?.CompletedAtUtc ?? DateTime.UtcNow, _findings.ToList(), _auditContext));
     }
 
     void ShowIntroIfNeeded()
@@ -467,14 +527,26 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("StartScan"));
         if (guard is null) return;
 
+        var preset = GetSelectedPreset();
+        var roots = RootsBox.Text.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (roots.Count == 0)
+        {
+            guard.Dispose();
+            StatusText.Text = LocalizationService.Get("FolderRequired");
+            return;
+        }
+        if (preset == ScanPreset.Full) roots = roots.Select(root => Path.GetPathRoot(root) ?? root).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (_newAuditSettingsVisible && _findings.Count > 0)
+        {
+            SnapshotStore.Delete(_snapshotPath);
+            _db.DeleteAuditResults();
+        }
+
         _cts = new(); _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; _peopleScanImages = []; _documentScanImages = []; _peopleScanState.Reset(); _documentScanState.Reset(); DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
+        _auditContext = new(preset, roots, _scanStart, _scanStart, TimeSpan.Zero);
         ScanButton.IsEnabled = false; CancelButton.IsEnabled = true; Busy.Visibility = Visibility.Visible;
         try
         {
-            var preset = GetSelectedPreset();
-            var roots = RootsBox.Text.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            if (roots.Count == 0) throw new InvalidOperationException(LocalizationService.Get("FolderRequired"));
-            if (preset == ScanPreset.Full) roots = roots.Select(root => Path.GetPathRoot(root) ?? root).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             var progress = new Progress<ScanProgress>(p => { StatusText.Text = $"{LocalizationService.Get("FileCount")}: {p.Files:N0}   {LocalizationService.Get("DataCount")}: {Format.Bytes(p.Bytes)}   {LocalizationService.Get("FindingCount")}: {p.Findings:N0}"; CountersText.Text = $"{p.Scanner}: {p.CurrentPath}"; });
             var context = new ScanContext { Preset = preset, Roots = roots, Exclusions = _db.GetExclusions(), Progress = progress };
             var scanners = ScanPresetPolicy.IncludesSystemScanners(preset)
@@ -484,15 +556,18 @@ public partial class MainWindow : Window
             var wasCanceled = _cts.IsCancellationRequested;
             _findings.AddRange(result.Findings.OrderByDescending(x => x.ExposureScore).ThenByDescending(x => x.SizeBytes));
             ApplyPersonalState();
-            _mediaFindings.AddRange(result.Findings.Where(x => x.Category == "Images" && File.Exists(x.Path)).OrderByDescending(x => x.ModifiedAt ?? DateTime.MinValue));
+            _mediaFindings.AddRange(result.Findings.Where(x => x.Category == "Images" && File.Exists(x.Path)).OrderByDescending(PrivacyRadarRanking.Score).ThenByDescending(x => x.ModifiedAt ?? DateTime.MinValue));
             UpdatePeoplePresentation();
             _db.Save(Guid.NewGuid(), _scanStart, _findings);
-            SnapshotStore.Save(_snapshotPath, DateTime.UtcNow, _findings);
+            var completedAt = DateTime.UtcNow;
+            _auditContext = new(preset, roots, _scanStart, completedAt, completedAt - _scanStart);
+            SnapshotStore.Save(_snapshotPath, completedAt, _findings, _auditContext);
             BuildDashboard(); RebuildCategories(); RefreshFindingsPage(true);
             _auditAvailableForApplicationHistory = true;
             RefreshApplicationHistorySummary();
             var elapsed = (DateTime.UtcNow - _scanStart).ToString("hh\\:mm\\:ss");
             StatusText.Text = string.Format(LocalizationService.Get(wasCanceled ? "ScanStopped" : "ScanComplete"), wasCanceled ? new object[] { elapsed, _findings.Count } : new object[] { elapsed });
+            ShowPreviousAuditSummary(new ScanSnapshot(completedAt, _findings.ToList(), _auditContext));
         }
         catch (OperationCanceledException) { StatusText.Text = LocalizationService.Get("ScanCanceled"); }
         catch (Exception ex) { System.Windows.MessageBox.Show(ex.Message, "NotBad Privacy Detector Agent", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error); StatusText.Text = LocalizationService.Get("ScanFailed"); }
@@ -564,7 +639,7 @@ public partial class MainWindow : Window
             ApplyPersonalState();
             await ApplyApplicationHistoryPersonalStateAsync(_applicationHistoryCts.Token);
             RebuildCategories(); RefreshFindingsPage(true);
-            SnapshotStore.Save(_snapshotPath, DateTime.UtcNow, _findings);
+            SaveCurrentSnapshot();
             ApplicationHistorySummaryText.Text = string.Format(LocalizationService.Get("ApplicationHistoryAnalysisSummary"), analysis.Applications.Count, analysis.RememberedObjects, analysis.MissingTargets, analysis.SensitiveObjects);
             ApplicationHistoryStatusText.Text = analysis.Warnings == 0
                 ? LocalizationService.Get("ApplicationHistoryComplete")
@@ -1319,7 +1394,7 @@ public partial class MainWindow : Window
                     };
                     if (matches) filtered.Add(finding);
                 }
-                return (Filtered: filtered.ToArray(), Records: records, People: people, NoPeople: noPeople, Errors: errors);
+                return (Filtered: filtered.OrderByDescending(PrivacyRadarRanking.Score).ThenByDescending(x => x.ModifiedAt ?? DateTime.MinValue).ToArray(), Records: records, People: people, NoPeople: noPeople, Errors: errors);
             }, token);
             await Dispatcher.InvokeAsync(() =>
             {
@@ -2758,7 +2833,8 @@ public partial class MainWindow : Window
             ? $"\n\n{LocalizationService.Get("PersonalModel")}:\n{personalScore:0}% — {LocalizationService.Get(personalScore >= 70 ? "LikelyInteresting" : personalScore <= 30 ? "LikelyNotInteresting" : "PersonalUncertain")}" +
               (PersonalAttentionFeatureExtractor.Explain(f) is { Count: > 0 } factors ? $"\n{LocalizationService.Get("Why")}:\n• {string.Join("\n• ", factors)}" : "")
             : $"\n\n{LocalizationService.Get("PersonalModelNotTrained")}";
-        DetailsText.Text = $"{f.DisplayName}\n\nFull path:\n{f.Path}\n\nSize: {f.SizeDisplay}\nCreated: {f.CreatedAt}\nModified: {f.ModifiedAt}\nLast access: {f.LastAccessAt}\n\nExposure: {f.ExposureScore} / 100 ({f.RiskLevel})\nReasons:\n• {string.Join("\n• ", f.ExposureReasons)}\n\nCategory: {f.Category}\nSubcategory: {f.Subcategory}\nAge: {f.AgeClass}\nScanner: {f.ScannerId}{personalDetails}{piiDetails}{secDetails}{docDetails}{peopleDetails}{exifDetails}{configDetails}{identityDetails}{archiveDetails}{applicationHistoryDetails}";
+        var radarDetails = string.Format(LocalizationService.Get("PrivacyRadarDetails"), PrivacyRadarRanking.Score(f), PrivacyRadarRanking.ConfirmedSignals(f));
+        DetailsText.Text = $"{f.DisplayName}\n\nFull path:\n{f.Path}\n\nSize: {f.SizeDisplay}\nCreated: {f.CreatedAt}\nModified: {f.ModifiedAt}\nLast access: {f.LastAccessAt}\n\nExposure: {f.ExposureScore} / 100 ({f.RiskLevel})\n{radarDetails}\nReasons:\n• {string.Join("\n• ", f.ExposureReasons)}\n\nCategory: {f.Category}\nSubcategory: {f.Subcategory}\nAge: {f.AgeClass}\nScanner: {f.ScannerId}{personalDetails}{piiDetails}{secDetails}{docDetails}{peopleDetails}{exifDetails}{configDetails}{identityDetails}{archiveDetails}{applicationHistoryDetails}";
 
         // Media Preview on Details tab
         if (string.Equals(Classifier.File(f.Path), "Images", StringComparison.OrdinalIgnoreCase) && File.Exists(f.Path))
@@ -3112,7 +3188,14 @@ public partial class MainWindow : Window
     }
     void SaveCurrentSnapshot()
     {
-        try { SnapshotStore.Save(_snapshotPath, DateTime.UtcNow, _findings); } catch { }
+        try
+        {
+            var savedAt = DateTime.UtcNow;
+            SnapshotStore.Save(_snapshotPath, savedAt, _findings, _auditContext);
+            if (PreviousAuditPanel.Visibility == Visibility.Visible)
+                ShowPreviousAuditSummary(new ScanSnapshot(savedAt, _findings.ToList(), _auditContext));
+        }
+        catch { }
     }
     void ApplyPersonalState()
     {

@@ -21,7 +21,9 @@ The Details page exposes an **Anonymized report for GitHub** action for every `F
 
 The sidebar footer also contains a purple rotating Recommendations card, driven by the existing inactive-window-aware rotation timer.
 
-Application startup owns a named local mutex (`Local\NotBadPrivacyDetectorAgent`). A second launch exits with a localized message. Snapshot restoration starts only after the main window is shown; the restore prompt and asynchronous staged progress are handled by `MainWindow.TryRestoreSnapshotAsync`.
+Application startup owns a named local mutex (`Local\NotBadPrivacyDetectorAgent`). A second launch exits with a localized message. Snapshot restoration starts automatically only after the main window is shown; asynchronous staged progress is handled by `MainWindow.TryRestoreSnapshotAsync`.
+
+The startup workspace follows the **Privacy Radar** lifecycle. `SnapshotStore` persists both enriched findings and the audit context (preset, roots, start/completion time and duration). `MainWindow.TryRestoreSnapshotAsync` automatically restores it after first render on a worker thread, keeps navigation visible in read-only mode, and replaces the scan-settings card with the current-radar summary. **Start over** reveals the standard preset/scope form; old audit rows and the resumable snapshot are cleared only when the replacement audit actually starts. `Core/PrivacyRadarRanking.cs` supplies evidence-aware ordering from accumulated deep-detector metadata.
 
 ```text
 PrivacyAudit.sln

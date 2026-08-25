@@ -16,6 +16,7 @@ NotBad Privacy Detector Agent brings those traces together, explains the risk an
 
 ## Highlights
 
+- **Privacy Radar that gets sharper over time.** The last audit opens automatically; every local deep check adds evidence and lifts confirmed, meaningful risks above broad candidates.
 - **Digital archaeology in one place.** Discover personal data, credentials, forgotten application traces, sensitive archives, media metadata and duplicates across the PC.
 - **Risk you can understand.** Findings come with evidence and context, so a scary score is never the whole explanation.
 - **Discover where it came from.** Investigate a selected file's likely origin and connections to local software without turning the audit into guesswork.
@@ -72,11 +73,12 @@ Your privacy priorities are personal. Rate findings with 👍 or 👎, and an op
 - sensitive files hidden inside archives and similar copies spread across folders;
 - Windows Recent and application-history traces that can resurface during everyday work or screen sharing.
 
-## Three steps to clarity
+## From broad map to confirmed findings
 
-1. Run a **Quick**, **Full** or **Custom** audit.
-2. Review the most exposed or personally relevant findings.
-3. Open Details when you need evidence, provenance or a deliberate next action.
+1. Run a quick initial assessment to build the local privacy map.
+2. Let evidence, sorting and your local AI narrow the candidate set.
+3. Launch focused checks for personal data, secrets, people, documents, archives or similar files.
+4. Return later to the automatically restored radar, where confirmed signals remain available and rank the most meaningful findings higher.
 
 The app does not decide what you should delete. File actions are explicit and separately confirmed.
 
