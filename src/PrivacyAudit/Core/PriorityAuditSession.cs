@@ -28,7 +28,7 @@ public sealed class PriorityAuditSession
     public int TotalRoutes => Routes.Count;
     public int CompletedRouteCount => CompletedRoutes.Count;
     public double Progress => TotalRoutes == 0 ? 0 : Math.Clamp((double)(CompletedRouteCount + SkippedRoutes.Count) / TotalRoutes, 0, 1);
-    public bool HasReport => CompletedRouteCount > 0 || Status == PriorityAuditStatus.Completed;
+    public bool HasReport => Status == PriorityAuditStatus.Completed && TotalRoutes > 0;
 
     public static string RouteKey(Guid findingId, string scannerId) => $"{findingId:N}|{scannerId}";
 }

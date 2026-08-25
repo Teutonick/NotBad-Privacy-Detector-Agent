@@ -32,7 +32,9 @@ try {
 
     $process = Start-Process -FilePath $publishedExe -ArgumentList '--smoke-test' -PassThru -WindowStyle Hidden
     $launchedPid = $process.Id
-    if (-not $process.WaitForExit(15000)) {
+    # A fresh single-file publish may spend several seconds extracting its bundled runtime
+    # before the WPF dispatcher reaches the smoke-test timer.
+    if (-not $process.WaitForExit(120000)) {
         Stop-Process -Id $launchedPid -Force -ErrorAction SilentlyContinue
         throw "Packaged startup smoke-test timed out (PID $launchedPid)."
     }

@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     CancellationTokenSource? _provenanceCts;
     FileProvenanceResult? _provenanceResult;
     Finding? _selected;
-    enum DetailsReturnSource { FindingsGrid, FindingsTiles, MediaTiles, ApplicationHistory, PriorityReport }
+    enum DetailsReturnSource { FindingsGrid, FindingsTiles, MediaTiles, ApplicationHistory, PriorityReport, PriorityReportTiles }
     sealed record DetailsReturnState(DetailsReturnSource Source, Finding Finding, double VerticalOffset, double HorizontalOffset);
     DetailsReturnState? _detailsReturnState;
     HwndSource? _windowSource;
@@ -114,9 +114,10 @@ public partial class MainWindow : Window
     bool _peopleModelInstalled;
     bool _peopleModelStatusKnown;
     PriorityAuditSession? _priorityAuditSession;
+    bool _priorityReportTileMode;
     CancellationTokenSource? _priorityAuditCts;
     bool _priorityAuditPauseRequested;
-    bool _priorityWizardDismissed;
+    int _priorityWizardPreparationVersion;
     int _priorityAuditCheckpointCounter;
     int _priorityAuditCheckpointSavePending;
 
@@ -299,7 +300,6 @@ public partial class MainWindow : Window
         _snapshotPath = SnapshotStore.PathFor(data);
         _introShownPath = Path.Combine(data, "intro-seen.flag");
         RootsBox.Text = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        RootsBox.Width = 255;
         _chooseButton = (RootsBox.Parent as System.Windows.Controls.Panel)?.Children.OfType<System.Windows.Controls.Button>().FirstOrDefault();
         _chooseButton?.SetCurrentValue(FrameworkElement.WidthProperty, 150d);
         _driveBox.SelectionChanged += DriveBox_SelectionChanged;
@@ -316,6 +316,7 @@ public partial class MainWindow : Window
         MediaTileList.ItemsSource = _visibleMediaFindings;
         ApplicationHistoryList.ItemsSource = _visibleApplicationHistoryApplications;
         PriorityReportGrid.ItemsSource = _visiblePriorityFindings;
+        PriorityReportTileList.ItemsSource = _visiblePriorityFindings;
         MediaTileList.PreviewMouseWheel += MediaTileList_MouseWheel;
         MediaTileList.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(MediaTileList_ScrollChanged));
         StatusText.Text = LocalizationService.Get("Ready");
@@ -622,9 +623,14 @@ public partial class MainWindow : Window
 
     async Task SavePrioritySessionAsync(PriorityAuditSession source)
     {
+        if (source.AuditFingerprint != CurrentAuditFingerprint()) return;
         var snapshot = CopyPrioritySession(source);
         await _prioritySessionSaveGate.WaitAsync();
-        try { await Task.Run(() => _priorityAuditStore.Save(snapshot)); }
+        try
+        {
+            if (snapshot.AuditFingerprint != CurrentAuditFingerprint()) return;
+            await Task.Run(() => _priorityAuditStore.Save(snapshot));
+        }
         finally { _prioritySessionSaveGate.Release(); }
     }
 
@@ -637,7 +643,19 @@ public partial class MainWindow : Window
     async Task PreparePriorityWizardAsync()
     {
         if (_findings.Count == 0 || _priorityAuditCts is not null) return;
+        var preparationVersion = ++_priorityWizardPreparationVersion;
         var fingerprint = CurrentAuditFingerprint();
+        if (_priorityAuditSession?.AuditFingerprint == fingerprint)
+        {
+            UpdatePriorityWizardPresentation();
+            if (_priorityAuditSession.HasReport)
+            {
+                RefreshPriorityReportCategories();
+                RefreshPriorityReport();
+            }
+            return;
+        }
+
         var restored = _priorityAuditStore.Load();
         if (restored is not null && restored.AuditFingerprint == fingerprint)
         {
@@ -648,18 +666,21 @@ public partial class MainWindow : Window
                 _priorityAuditStore.Save(_priorityAuditSession);
             }
             UpdatePriorityWizardPresentation();
-            RefreshPriorityReport();
+            if (_priorityAuditSession.HasReport)
+            {
+                RefreshPriorityReportCategories();
+                RefreshPriorityReport();
+            }
             return;
         }
 
-        PriorityAuditWizardPanel.Visibility = Visibility.Visible;
-        PrivacyRadarIntroPanel.Visibility = Visibility.Collapsed;
+        _priorityAuditSession = null;
+        ShowPriorityWizardPreparingState();
         PriorityWizardReadyText.Text = LocalizationService.Get("MediaScanPreparingFiles");
         PriorityWizardPlanText.Text = "";
-        PriorityWizardStartButton.IsEnabled = false;
         var findings = _findings.ToArray();
         var selection = await Task.Run(() => new TriageRouter().Select(findings));
-        if (!IsLoaded || fingerprint != CurrentAuditFingerprint()) return;
+        if (!IsLoaded || preparationVersion != _priorityWizardPreparationVersion || fingerprint != CurrentAuditFingerprint()) return;
         if (selection.SelectedFindings == 0)
         {
             PriorityAuditWizardPanel.Visibility = Visibility.Collapsed;
@@ -680,10 +701,29 @@ public partial class MainWindow : Window
         RefreshPriorityReportCategories();
     }
 
+    void ShowPriorityWizardPreparingState()
+    {
+        PriorityAuditWizardPanel.Visibility = Visibility.Visible;
+        PrivacyRadarIntroPanel.Visibility = Visibility.Collapsed;
+        PriorityWizardReadyPanel.Visibility = Visibility.Visible;
+        PriorityWizardRunningPanel.Visibility = Visibility.Collapsed;
+        PriorityWizardCompletePanel.Visibility = Visibility.Collapsed;
+        PriorityWizardStartButton.IsEnabled = false;
+        PriorityWizardReportButton.IsEnabled = false;
+        PriorityWizardReportButton.IsHitTestVisible = false;
+        PriorityWizardFullReportButton.IsEnabled = false;
+        PriorityWizardFullReportButton.IsHitTestVisible = false;
+        TabPriorityReport.Visibility = Visibility.Collapsed;
+        _visiblePriorityFindings.Clear();
+        _sortedPriorityFindings = [];
+        _priorityReportPage = 0;
+        UpdatePriorityPartialHints();
+    }
+
     void UpdatePriorityWizardPresentation()
     {
         var session = _priorityAuditSession;
-        if (session is null || _priorityWizardDismissed)
+        if (session is null)
         {
             PriorityAuditWizardPanel.Visibility = Visibility.Collapsed;
             PrivacyRadarIntroPanel.Visibility = Visibility.Visible;
@@ -694,7 +734,7 @@ public partial class MainWindow : Window
         PrivacyRadarIntroPanel.Visibility = Visibility.Collapsed;
         PriorityWizardReadyPanel.Visibility = session.Status is PriorityAuditStatus.Ready or PriorityAuditStatus.Paused or PriorityAuditStatus.Canceled ? Visibility.Visible : Visibility.Collapsed;
         PriorityWizardRunningPanel.Visibility = session.Status == PriorityAuditStatus.Running ? Visibility.Visible : Visibility.Collapsed;
-        PriorityWizardCompletePanel.Visibility = session.Status == PriorityAuditStatus.Completed ? Visibility.Visible : Visibility.Collapsed;
+        PriorityWizardCompletePanel.Visibility = session.HasReport ? Visibility.Visible : Visibility.Collapsed;
         PriorityWizardStartButton.IsEnabled = session.Status != PriorityAuditStatus.Running;
         PriorityWizardStartButton.Content = LocalizationService.Get(session.Status is PriorityAuditStatus.Paused or PriorityAuditStatus.Canceled ? "PriorityWizardContinue" : "PriorityWizardStart");
 
@@ -708,8 +748,8 @@ public partial class MainWindow : Window
         PriorityWizardProgress.Value = session.Progress;
         PriorityWizardProgressText.Text = string.Format(LocalizationService.Get("PriorityWizardProgress"), session.Progress, session.CompletedRouteCount, session.TotalRoutes, session.ConfirmedSignals, session.Errors);
         PriorityWizardCompleteText.Text = string.Format(LocalizationService.Get("PriorityWizardComplete"), session.FindingIds.Count, session.ConfirmedSignals, session.Errors);
-        TabPriorityReport.Visibility = session.Status == PriorityAuditStatus.Completed ? Visibility.Visible : Visibility.Collapsed;
-        var reportReady = session.Status == PriorityAuditStatus.Completed;
+        var reportReady = session.HasReport;
+        TabPriorityReport.Visibility = reportReady ? Visibility.Visible : Visibility.Collapsed;
         PriorityWizardReportButton.IsEnabled = reportReady;
         PriorityWizardReportButton.IsHitTestVisible = reportReady;
         PriorityWizardFullReportButton.IsEnabled = reportReady;
@@ -804,14 +844,14 @@ public partial class MainWindow : Window
         RequestCancellation(_priorityAuditCts, showGlobalProgress: false);
     }
 
-    void PriorityWizardSkip_Click(object sender, RoutedEventArgs e)
-    {
-        _priorityWizardDismissed = true;
-        UpdatePriorityWizardPresentation();
-    }
-
     void PriorityWizardReport_Click(object sender, RoutedEventArgs e)
     {
+        if (_priorityAuditSession?.HasReport != true)
+        {
+            TabPriorityReport.Visibility = Visibility.Collapsed;
+            UpdatePriorityWizardPresentation();
+            return;
+        }
         RefreshPriorityReportCategories();
         RefreshPriorityReport();
         TabPriorityReport.Visibility = Visibility.Visible;
@@ -820,13 +860,18 @@ public partial class MainWindow : Window
 
     void PriorityWizardFullReport_Click(object sender, RoutedEventArgs e)
     {
+        if (_priorityAuditSession?.HasReport != true)
+        {
+            UpdatePriorityWizardPresentation();
+            return;
+        }
         TabFindings.IsSelected = true;
         RefreshFindingsPage(true);
     }
 
     void RefreshPriorityReportCategories()
     {
-        if (PriorityReportCategoryFilter is null || _priorityAuditSession is null) return;
+        if (PriorityReportCategoryFilter is null || _priorityAuditSession?.HasReport != true) return;
         var selected = (PriorityReportCategoryFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
         PriorityReportCategoryFilter.Items.Clear();
         PriorityReportCategoryFilter.Items.Add(new ComboBoxItem { Content = LocalizationService.Get("AllCategories"), Tag = "All" });
@@ -838,7 +883,15 @@ public partial class MainWindow : Window
 
     void RefreshPriorityReport(bool resetPage = false)
     {
-        if (!IsInitialized || _priorityAuditSession is null || PriorityReportRiskFilter is null) return;
+        if (!IsInitialized || PriorityReportRiskFilter is null) return;
+        if (_priorityAuditSession?.HasReport != true)
+        {
+            _sortedPriorityFindings = [];
+            _visiblePriorityFindings.Clear();
+            _priorityReportPage = 0;
+            TabPriorityReport.Visibility = Visibility.Collapsed;
+            return;
+        }
         var ids = _priorityAuditSession.FindingIds.ToHashSet();
         var risk = (PriorityReportRiskFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
         var category = (PriorityReportCategoryFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
@@ -870,7 +923,9 @@ public partial class MainWindow : Window
         };
         _sortedPriorityFindings = source.ToArray();
         if (resetPage) _priorityReportPage = 0;
-        var page = FindingPagination.Slice(_sortedPriorityFindings, _priorityReportPage, FindingPagination.ListPageSize);
+        UpdatePriorityReportPresentation();
+        var pageSize = PriorityReportPageSize();
+        var page = FindingPagination.Slice(_sortedPriorityFindings, _priorityReportPage, pageSize);
         _priorityReportPage = page.PageIndex;
         _visiblePriorityFindings.ReplaceRange(page.Items);
         PriorityReportDescriptionText.Text = $"{LocalizationService.Get("PriorityReportDescription")} · {_sortedPriorityFindings.Length:N0} / {_priorityAuditSession.FindingIds.Count:N0}";
@@ -879,7 +934,44 @@ public partial class MainWindow : Window
         PriorityReportNextButton.IsEnabled = page.PageIndex + 1 < page.PageCount;
     }
 
-    void PriorityReportFilter_Changed(object sender, SelectionChangedEventArgs e) => RefreshPriorityReport(true);
+    bool IsPriorityReportImagesFilter =>
+        string.Equals((PriorityReportCategoryFilter?.SelectedItem as ComboBoxItem)?.Tag?.ToString(), "Images", StringComparison.OrdinalIgnoreCase);
+
+    int PriorityReportPageSize() => FindingPagination.PresentationPageSize(
+        _priorityReportTileMode, IsPriorityReportImagesFilter, PriorityReportTileZoom.Value);
+
+    void UpdatePriorityReportPresentation()
+    {
+        if (PriorityReportImageModeControls is null) return;
+        var isImages = IsPriorityReportImagesFilter;
+        if (!isImages) _priorityReportTileMode = false;
+        PriorityReportImageModeControls.Visibility = isImages ? Visibility.Visible : Visibility.Collapsed;
+        PriorityReportGrid.Visibility = _priorityReportTileMode ? Visibility.Collapsed : Visibility.Visible;
+        PriorityReportTileList.Visibility = _priorityReportTileMode ? Visibility.Visible : Visibility.Collapsed;
+        PriorityReportTileScaleControls.Visibility = _priorityReportTileMode ? Visibility.Visible : Visibility.Collapsed;
+        PriorityReportViewToggle.Content = LocalizationService.Get(_priorityReportTileMode ? "ListView" : "TileView");
+    }
+
+    void TogglePriorityReportView_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsPriorityReportImagesFilter) return;
+        _priorityReportTileMode = !_priorityReportTileMode;
+        UpdatePriorityReportPresentation();
+        RefreshPriorityReport(true);
+    }
+
+    void PriorityReportTileZoom_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (PriorityReportTileZoomLabel is null) return;
+        PriorityReportTileZoomLabel.Text = $"{e.NewValue:0} px";
+        if (_priorityReportTileMode) RefreshPriorityReport(true);
+    }
+
+    void PriorityReportFilter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        UpdatePriorityReportPresentation();
+        RefreshPriorityReport(true);
+    }
     void PriorityReportSearch_Changed(object sender, TextChangedEventArgs e) => RefreshPriorityReport(true);
     void PriorityReportReset_Click(object sender, RoutedEventArgs e)
     {
@@ -888,6 +980,8 @@ public partial class MainWindow : Window
         PriorityReportStatusFilter.SelectedIndex = 0;
         PriorityReportSortFilter.SelectedIndex = 0;
         PriorityReportSearchBox.Clear();
+        _priorityReportTileMode = false;
+        UpdatePriorityReportPresentation();
         RefreshPriorityReport(true);
     }
 
@@ -900,7 +994,7 @@ public partial class MainWindow : Window
 
     void PriorityReportNextPage_Click(object sender, RoutedEventArgs e)
     {
-        var pageCount = Math.Max(1, (int)Math.Ceiling(_sortedPriorityFindings.Length / (double)FindingPagination.ListPageSize));
+        var pageCount = Math.Max(1, (int)Math.Ceiling(_sortedPriorityFindings.Length / (double)PriorityReportPageSize()));
         if (_priorityReportPage + 1 >= pageCount) return;
         _priorityReportPage++;
         RefreshPriorityReport();
@@ -909,6 +1003,22 @@ public partial class MainWindow : Window
     void PriorityReportFinding_Selected(object sender, SelectionChangedEventArgs e)
     {
         if (PriorityReportGrid.SelectedItem is Finding finding) SelectFinding(finding);
+    }
+
+    void PriorityReportTile_Selected(object sender, SelectionChangedEventArgs e)
+    {
+        if (PriorityReportTileList.SelectedItem is Finding finding) SelectFinding(finding);
+    }
+
+    void PriorityReportTile_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        var element = e.OriginalSource as DependencyObject;
+        while (element is not null && element is not ListBoxItem) element = VisualTreeHelper.GetParent(element);
+        if (element is ListBoxItem { DataContext: Finding finding })
+        {
+            SelectFindingAndShowDetails(finding, DetailsReturnSource.PriorityReportTiles);
+            e.Handled = true;
+        }
     }
 
     void PriorityReportGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -1037,12 +1147,12 @@ public partial class MainWindow : Window
 
     void ResetPriorityAuditForNewAudit()
     {
+        _priorityWizardPreparationVersion++;
         _priorityAuditStore.Delete();
         _priorityAuditSession = null;
         _visiblePriorityFindings.Clear();
         _sortedPriorityFindings = [];
         _priorityReportPage = 0;
-        _priorityWizardDismissed = false;
         _findingsPriorityPartialHintDismissed = false;
         _mediaPriorityPartialHintDismissed = false;
         _applicationHistoryPriorityPartialHintDismissed = false;
@@ -3095,6 +3205,12 @@ public partial class MainWindow : Window
         sv.ScrollToVerticalOffset(targetOffset);
         if (cannotMoveFurther) HandleMediaBoundary(sv, rowDelta);
     }
+    void MediaDeepAnalysisToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var collapse = MediaDeepAnalysisContent.Visibility == Visibility.Visible;
+        MediaDeepAnalysisContent.Visibility = collapse ? Visibility.Collapsed : Visibility.Visible;
+        MediaDeepAnalysisToggle.ToolTip = LocalizationService.Get(collapse ? "ExpandDeepAnalysisHelp" : "CollapseDeepAnalysisHelp");
+    }
     void MediaTileList_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (e.VerticalChange == 0 && e.ExtentHeightChange == 0) return;
@@ -3317,6 +3433,7 @@ public partial class MainWindow : Window
             DetailsReturnSource.FindingsTiles => FindingsTileList,
             DetailsReturnSource.MediaTiles => MediaTileList,
             DetailsReturnSource.PriorityReport => PriorityReportGrid,
+            DetailsReturnSource.PriorityReportTiles => PriorityReportTileList,
             _ => ApplicationHistoryList
         };
         var scrollViewer = FindVisualChild<ScrollViewer>(sourceControl);
@@ -3353,6 +3470,7 @@ public partial class MainWindow : Window
                 DetailsReturnSource.FindingsTiles => FindingsTileList,
                 DetailsReturnSource.MediaTiles => MediaTileList,
                 DetailsReturnSource.PriorityReport => PriorityReportGrid,
+                DetailsReturnSource.PriorityReportTiles => PriorityReportTileList,
                 _ => ApplicationHistoryList
             };
             switch (state.Source)
@@ -3368,6 +3486,9 @@ public partial class MainWindow : Window
                     break;
                 case DetailsReturnSource.PriorityReport:
                     PriorityReportGrid.SelectedItem = state.Finding;
+                    break;
+                case DetailsReturnSource.PriorityReportTiles:
+                    PriorityReportTileList.SelectedItem = state.Finding;
                     break;
                 case DetailsReturnSource.ApplicationHistory:
                     break;
@@ -3802,6 +3923,7 @@ public partial class MainWindow : Window
             FindingsTileList.UnselectAll();
             MediaTileList.UnselectAll();
             PriorityReportGrid.UnselectAll();
+            PriorityReportTileList.UnselectAll();
             SaveCurrentSnapshot();
             RefreshFindingsPage(true);
             RefreshPriorityReport();

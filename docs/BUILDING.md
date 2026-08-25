@@ -1,6 +1,6 @@
 # Building
 
-The mandatory verification smoke-test starts with an isolated app-data environment and suppresses interactive restore UI. Normal desktop launches automatically restore the last Privacy Radar snapshot after the window is shown; this does not change build or publish commands.
+The mandatory verification smoke-test starts with an isolated app-data environment and suppresses interactive restore UI. A fresh single-file publish can spend time extracting its bundled runtime, so the verification gate allows up to 120 seconds for the packaged process to start and exit. Normal desktop launches automatically restore the last Privacy Radar snapshot after the window is shown; this does not change build or publish commands.
 
 Documentation ownership is defined in [PROJECT_MAP.md](PROJECT_MAP.md#documentation-boundaries). Build and packaging details belong here; README keeps only the product overview and a link to this guide.
 

@@ -33,6 +33,13 @@ public sealed class PaginationTests
     [InlineData(260, 72)]
     public void TilePageSize_AdaptsToThumbnailScale(double tileSize, int expected) => Assert.Equal(expected, FindingPagination.TilePageSize(tileSize));
 
+    [Theory]
+    [InlineData(true, true, 140, 240)]
+    [InlineData(false, true, 140, 600)]
+    [InlineData(true, false, 140, 600)]
+    public void PresentationPageSize_UsesTilesOnlyForImageTileMode(bool tileMode, bool imageCategory, double tileSize, int expected) =>
+        Assert.Equal(expected, FindingPagination.PresentationPageSize(tileMode, imageCategory, tileSize));
+
     [Fact]
     public void RangeCollection_ReplacesLargeWindowsWithSingleUiNotification()
     {

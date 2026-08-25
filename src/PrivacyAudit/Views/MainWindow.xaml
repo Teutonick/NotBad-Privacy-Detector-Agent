@@ -19,10 +19,7 @@
         <StackPanel x:Name="PriorityWizardReadyPanel">
           <TextBlock x:Name="PriorityWizardReadyText" TextWrapping="Wrap" Foreground="#C8D4E8" FontSize="14" LineHeight="21" Margin="0,8,0,14"/>
           <TextBlock x:Name="PriorityWizardPlanText" Foreground="#9FE6B0" TextWrapping="Wrap" Margin="0,0,0,14"/>
-          <StackPanel Orientation="Horizontal">
-            <Button x:Name="PriorityWizardStartButton" Style="{StaticResource PrimaryButton}" Click="PriorityWizardStart_Click" Content="{local:Loc PriorityWizardStart}" Background="#1FFF9F0A" Foreground="#FFD36A" BorderBrush="#FF9F0A" FontWeight="SemiBold" ToolTip="{local:Loc PriorityWizardStartHelp}"/>
-            <Button x:Name="PriorityWizardSkipButton" Click="PriorityWizardSkip_Click" Content="{local:Loc PriorityWizardSkip}" ToolTip="{local:Loc PriorityWizardSkipHelp}"/>
-          </StackPanel>
+          <Button x:Name="PriorityWizardStartButton" Style="{StaticResource PrimaryButton}" Click="PriorityWizardStart_Click" Content="{local:Loc PriorityWizardStart}" Background="#1FFF9F0A" Foreground="#FFD36A" BorderBrush="#FF9F0A" FontWeight="SemiBold" HorizontalAlignment="Left" ToolTip="{local:Loc PriorityWizardStartHelp}"/>
         </StackPanel>
         <StackPanel x:Name="PriorityWizardRunningPanel" Visibility="Collapsed">
           <TextBlock x:Name="PriorityWizardStageText" TextWrapping="Wrap" Foreground="#C8D4E8" Margin="0,8,0,8"/>
@@ -46,12 +43,14 @@
         <TextBlock Text="{local:Loc ScanSettings}" FontWeight="SemiBold" Margin="2,0,0,14"/>
         <ComboBox x:Name="PresetBox" Grid.Row="1" SelectedIndex="0" Margin="0,0,0,10" ToolTip="{local:Loc ScanPresetHelp}"><ComboBoxItem Content="{local:Loc PresetCustom}" Tag="Custom"/><ComboBoxItem Content="{local:Loc PresetQuick}" Tag="Quick"/><ComboBoxItem Content="{local:Loc PresetFull}" Tag="Full"/></ComboBox>
         <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="RootsBox" IsReadOnly="True" Height="36" Padding="12,0" VerticalContentAlignment="Center" ToolTip="{local:Loc BrowseFolderHelp}"/><Button Grid.Column="1" Click="BrowseRoot_Click" Content="{local:Loc ChooseFolder}" Width="150" Height="36" Padding="10,0" Margin="8,0,0,0" Background="#20FFFFFF" HorizontalContentAlignment="Center" ToolTip="{local:Loc BrowseFolderHelp}"/></Grid>
-        <WrapPanel Grid.Row="3" Margin="0,12,0,0">
-          <Button x:Name="ScanButton" Style="{StaticResource PrimaryButton}" Click="Scan_Click" Content="{local:Loc StartScan}" ToolTip="{local:Loc StartScanHelp}" Margin="0,0,8,0"/>
-          <Button x:Name="CancelButton" Click="Cancel_Click" Content="{local:Loc StopScan}" IsEnabled="False" Visibility="Collapsed" ToolTip="{local:Loc StopScanHelp}" Margin="0,0,8,0"/>
-          <Button x:Name="CancelRestoreButton" Click="CancelRestore_Click" Content="{local:Loc CancelSnapshotRestore}" Visibility="Collapsed" ToolTip="{local:Loc CancelSnapshotRestoreHelp}" Margin="0,8,8,0"/>
-          <Button x:Name="ReturnToPreviousAuditButton" Click="ReturnToPreviousAudit_Click" Content="{local:Loc BackToPreviousAudit}" Visibility="Collapsed" ToolTip="{local:Loc BackToPreviousAuditHelp}"/>
-        </WrapPanel>
+        <StackPanel Grid.Row="3" Margin="0,12,0,0">
+          <WrapPanel>
+            <Button x:Name="ScanButton" Style="{StaticResource PrimaryButton}" Click="Scan_Click" Content="{local:Loc StartScan}" ToolTip="{local:Loc StartScanHelp}" Margin="0,0,8,0"/>
+            <Button x:Name="CancelButton" Click="Cancel_Click" Content="{local:Loc StopScan}" IsEnabled="False" Visibility="Collapsed" ToolTip="{local:Loc StopScanHelp}"/>
+          </WrapPanel>
+          <Button x:Name="CancelRestoreButton" Click="CancelRestore_Click" Content="{local:Loc CancelSnapshotRestore}" Visibility="Collapsed" HorizontalAlignment="Left" ToolTip="{local:Loc CancelSnapshotRestoreHelp}" Margin="0,8,0,0"/>
+          <Button x:Name="ReturnToPreviousAuditButton" Click="ReturnToPreviousAudit_Click" Content="{local:Loc BackToPreviousAudit}" Visibility="Collapsed" HorizontalAlignment="Left" ToolTip="{local:Loc BackToPreviousAuditHelp}" Margin="0,8,0,0"/>
+        </StackPanel>
       </Grid>
     </Border>
     <Border x:Name="PreviousAuditPanel" Grid.Column="1" Background="#40000000" CornerRadius="18" Padding="20" Visibility="Collapsed">
@@ -89,6 +88,14 @@
         <ComboBox x:Name="PriorityReportStatusFilter" Width="190" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc PriorityReportStatusHelp}"><ComboBoxItem Content="{local:Loc PriorityReportConfirmed}" Tag="Confirmed" IsSelected="True"/><ComboBoxItem Content="{local:Loc PriorityReportAllResearched}" Tag="All"/><ComboBoxItem Content="{local:Loc PriorityReportClear}" Tag="Clear"/><ComboBoxItem Content="{local:Loc PriorityReportErrors}" Tag="Errors"/></ComboBox>
         <ComboBox x:Name="PriorityReportSortFilter" Width="180" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc PriorityReportSortHelp}"><ComboBoxItem Content="{local:Loc PriorityReportDetectionSort}" Tag="Detection" IsSelected="True"/><ComboBoxItem Content="{local:Loc PrivacyRisk}" Tag="Privacy"/><ComboBoxItem Content="{local:Loc Modified}" Tag="Modified"/></ComboBox>
         <TextBox x:Name="PriorityReportSearchBox" Width="210" Height="34" Margin="0,0,8,8" TextChanged="PriorityReportSearch_Changed" ToolTip="{local:Loc SearchBoxHelp}"/>
+        <StackPanel x:Name="PriorityReportImageModeControls" Orientation="Horizontal" Visibility="Collapsed" Margin="0,0,8,8">
+          <Button x:Name="PriorityReportViewToggle" Click="TogglePriorityReportView_Click" Content="{local:Loc TileView}" Padding="12,7" ToolTip="{local:Loc TileViewHelp}"/>
+          <StackPanel x:Name="PriorityReportTileScaleControls" Orientation="Horizontal" Visibility="Collapsed" Margin="8,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="{local:Loc TileSize}" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <Slider x:Name="PriorityReportTileZoom" Minimum="80" Maximum="260" Value="140" Width="130" VerticalAlignment="Center" TickFrequency="20" IsSnapToTickEnabled="True" ValueChanged="PriorityReportTileZoom_Changed" ToolTip="{local:Loc TileSizeHelp}"/>
+            <TextBlock x:Name="PriorityReportTileZoomLabel" Text="140 px" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+          </StackPanel>
+        </StackPanel>
         <Button Click="PriorityReportReset_Click" Content="{local:Loc ResetFilters}" Padding="12,7" Margin="0,0,0,8" ToolTip="{local:Loc ResetFiltersHelp}"/>
       </WrapPanel>
       <TextBlock Text="{local:Loc AccuracyDisclaimer}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="2,4,2,0" FontSize="11"/>
@@ -103,12 +110,39 @@
           <DataGridTextColumn Header="{local:Loc DetectRisk}" Binding="{Binding RiskLevel}" Width="110"/>
           <DataGridTextColumn Header="{local:Loc Type}" Binding="{Binding Category}" Width="120"/>
           <DataGridTextColumn Header="{local:Loc Name}" Binding="{Binding DisplayName}" Width="*"/>
+          <DataGridTemplateColumn Header="{local:Loc PersonalModelShort}" SortMemberPath="PersonalAttentionScore" Width="150">
+            <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding PersonalAttentionDisplay}" Foreground="#69B7FF" Width="40" VerticalAlignment="Center"/>
+              <Button Content="👍" Tag="True" Click="PersonalFeedback_Click" Padding="5,2" Margin="1" Opacity="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackOpacityConverter}, ConverterParameter=True}" Background="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackBackgroundConverter}, ConverterParameter=True}" ToolTip="{local:Loc Interesting}"/>
+              <Button Content="👎" Tag="False" Click="PersonalFeedback_Click" Padding="5,2" Margin="1" Opacity="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackOpacityConverter}, ConverterParameter=False}" Background="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackBackgroundConverter}, ConverterParameter=False}" ToolTip="{local:Loc NotInteresting}"/>
+              <Button Content="×" Tag="Clear" Click="PersonalFeedback_Click" Padding="5,2" Margin="1" Opacity="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackOpacityConverter}, ConverterParameter=Clear}" ToolTip="{local:Loc ClearRating}"/>
+            </StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
           <DataGridTemplateColumn Header="DETECTIONS" Width="165"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding MetadataJson, Converter={StaticResource FindingBadgeConverter}}" Foreground="#FF9F0A" FontWeight="SemiBold" FontSize="11" TextTrimming="CharacterEllipsis"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
           <DataGridTextColumn Header="{local:Loc Size}" Binding="{Binding SizeDisplay}" Width="90"/>
           <DataGridTextColumn Header="{local:Loc Age}" Binding="{Binding AgeClass}" Width="100"/>
           <DataGridTextColumn Header="{local:Loc Modified}" Binding="{Binding ModifiedAt, StringFormat={}{0:yyyy-MM-dd}}" Width="110"/>
         </DataGrid.Columns>
       </DataGrid>
+      <ListBox x:Name="PriorityReportTileList" Grid.Row="0" Visibility="Collapsed" SelectionMode="Extended" Background="Transparent" BorderThickness="0" SelectionChanged="PriorityReportTile_Selected" MouseDoubleClick="PriorityReportTile_DoubleClick" Tag="{Binding ElementName=PriorityReportTileZoom, Path=Value}" PreviewMouseRightButtonDown="Finding_RightClick" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
+        <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="5"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Background" Value="Transparent"/></Style></ListBox.ItemContainerStyle>
+        <ListBox.ItemTemplate><DataTemplate>
+          <Border Width="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=Tag}" Height="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=Tag}" Background="#18FFFFFF" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="8">
+            <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+              <local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="256" Stretch="Uniform"/>
+              <TextBlock Grid.Row="1" Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" Margin="0,5,0,0"/>
+              <TextBlock Grid.Row="2" Text="{Binding MetadataJson, Converter={StaticResource FindingBadgeConverter}}" Foreground="#FF9F0A" FontSize="11" TextTrimming="CharacterEllipsis"/>
+              <StackPanel Grid.Row="3" Orientation="Horizontal">
+                <TextBlock Text="{Binding PersonalAttentionDisplay}" Foreground="#69B7FF" Width="35" VerticalAlignment="Center"/>
+                <Button Content="👍" Tag="True" Click="PersonalFeedback_Click" Padding="3,1" Margin="1" Opacity="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackOpacityConverter}, ConverterParameter=True}" Background="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackBackgroundConverter}, ConverterParameter=True}" ToolTip="{local:Loc Interesting}"/>
+                <Button Content="👎" Tag="False" Click="PersonalFeedback_Click" Padding="3,1" Margin="1" Opacity="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackOpacityConverter}, ConverterParameter=False}" Background="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackBackgroundConverter}, ConverterParameter=False}" ToolTip="{local:Loc NotInteresting}"/>
+                <Button Content="×" Tag="Clear" Click="PersonalFeedback_Click" Padding="3,1" Margin="1" Opacity="{Binding PersonalAttentionLabel, Converter={StaticResource FeedbackOpacityConverter}, ConverterParameter=Clear}" ToolTip="{local:Loc ClearRating}"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+        </DataTemplate></ListBox.ItemTemplate>
+      </ListBox>
       <DockPanel Grid.Row="1" Margin="8,8,8,2">
         <StackPanel Orientation="Horizontal"><Button x:Name="PriorityReportPreviousButton" Click="PriorityReportPreviousPage_Click" Content="{local:Loc PreviousPage}" Padding="12,7" ToolTip="{local:Loc PreviousPageHelp}"/><Button x:Name="PriorityReportNextButton" Click="PriorityReportNextPage_Click" Content="{local:Loc NextPage}" Padding="12,7" ToolTip="{local:Loc NextPageHelp}"/></StackPanel>
         <TextBlock x:Name="PriorityReportPageStatus" DockPanel.Dock="Right" Style="{StaticResource MutedText}" VerticalAlignment="Center"/>
@@ -206,9 +240,9 @@
         <Button x:Name="TextScanCancelButton" Click="TextScanCancel_Click" Content="{local:Loc StopScan}" Padding="11,7" Margin="0,0,8,8" Visibility="Collapsed" ToolTip="{local:Loc TextScanCancelHelp}"/>
         <StackPanel x:Name="ImageModeControls" Orientation="Horizontal" Visibility="Collapsed" Margin="0,0,8,8">
           <Button x:Name="FindingsViewToggle" Click="ToggleFindingsView_Click" Content="{local:Loc TileView}" Padding="12,7" ToolTip="{local:Loc TileViewHelp}"/>
-          <StackPanel x:Name="TileScaleControls" Orientation="Horizontal" Visibility="Collapsed" Margin="8,0,0,0">
+          <StackPanel x:Name="TileScaleControls" Orientation="Horizontal" Visibility="Collapsed" Margin="8,0,0,0" VerticalAlignment="Center">
             <TextBlock Text="{local:Loc TileSize}" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <Slider x:Name="FindingsTileZoom" Minimum="80" Maximum="260" Value="140" Width="130" TickFrequency="20" IsSnapToTickEnabled="True" ValueChanged="FindingsTileZoom_Changed" ToolTip="{local:Loc TileSizeHelp}"/>
+            <Slider x:Name="FindingsTileZoom" Minimum="80" Maximum="260" Value="140" Width="130" VerticalAlignment="Center" TickFrequency="20" IsSnapToTickEnabled="True" ValueChanged="FindingsTileZoom_Changed" ToolTip="{local:Loc TileSizeHelp}"/>
             <TextBlock x:Name="FindingsTileZoomLabel" Text="140 px" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
           </StackPanel>
         </StackPanel>
@@ -335,8 +369,11 @@
       <Button x:Name="MediaLegendToggle" Grid.Column="1" Click="MediaLegendToggle_Click" Content="{local:Loc LegendButton}" Padding="14,8" FontSize="12" FontWeight="SemiBold" Background="#1C0A84FF" Foreground="#69B7FF" BorderThickness="1" BorderBrush="#3D0A84FF" HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="{local:Loc LegendTitle}"/>
     </Grid>
 
-    <Border Grid.Row="1" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="16" Margin="0,0,0,12">
-      <StackPanel>
+    <Border Grid.Row="1" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="0" Margin="0,0,0,12">
+      <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="28"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Button x:Name="MediaDeepAnalysisToggle" Grid.Row="0" Click="MediaDeepAnalysisToggle_Click" Content="⌜⌟" Style="{StaticResource LinkButton}" Width="92" Height="28" Padding="0,0,0,3" HorizontalAlignment="Right" HorizontalContentAlignment="Center" VerticalAlignment="Top" Foreground="#66758A" FontSize="15" ToolTip="{local:Loc CollapseDeepAnalysisHelp}"/>
+        <StackPanel x:Name="MediaDeepAnalysisContent" Grid.Row="1" Margin="16,0,16,16">
         <Border x:Name="MediaPriorityPartialHintPanel" Background="#26FFB340" BorderBrush="#FFB340" BorderThickness="1" CornerRadius="10" Padding="12,8" Margin="0,0,0,12" Visibility="Collapsed">
           <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{local:Loc MediaPriorityPartialHint}" Foreground="#FFD36A" TextWrapping="Wrap" Margin="0,0,12,0"/><Button Grid.Column="1" Click="MediaPriorityPartialHintClose_Click" Content="✕" Style="{StaticResource LinkButton}" Foreground="#FFD36A" Padding="5,0" ToolTip="{local:Loc PriorityPartialHintClose}"/></Grid>
         </Border>
@@ -421,7 +458,8 @@
             </StackPanel>
           </Border>
         </Grid>
-      </StackPanel>
+        </StackPanel>
+      </Grid>
     </Border>
     <Border Grid.Row="2" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="12,12,12,4" Margin="0,0,0,12">
       <StackPanel>

@@ -82,6 +82,27 @@ public sealed class TriageRouterTests
     }
 
     [Fact]
+    public void PriorityReportIsAvailableOnlyAfterSuccessfulCompletion()
+    {
+        var findingId = Guid.NewGuid();
+        var session = new PriorityAuditSession
+        {
+            FindingIds = [findingId],
+            Routes = [new(findingId, "pii", 70, DeepScannerCost.Moderate, "docs", ["text"])]
+        };
+
+        Assert.False(session.HasReport);
+        session.CompletedRoutes.Add(PriorityAuditSession.RouteKey(findingId, "pii"));
+        Assert.False(session.HasReport);
+        session.Status = PriorityAuditStatus.Paused;
+        Assert.False(session.HasReport);
+        session.Status = PriorityAuditStatus.Canceled;
+        Assert.False(session.HasReport);
+        session.Status = PriorityAuditStatus.Completed;
+        Assert.True(session.HasReport);
+    }
+
+    [Fact]
     public void PrioritySessionRoundTripsLocally()
     {
         var path = Path.Combine(Path.GetTempPath(), $"priority-session-{Guid.NewGuid():N}.json");
