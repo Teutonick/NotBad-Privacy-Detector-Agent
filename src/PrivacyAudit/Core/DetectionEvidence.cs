@@ -71,6 +71,8 @@ public static class DetectionEvidenceCalculator
         return finding.PrivacyRiskRank;
     }
 
+    public static bool IsCompleted(string? json, string scannerKey) => !string.IsNullOrWhiteSpace(json) && HasCompletedStatus(json, scannerKey);
+
     static bool HasCompletedStatus(string json, string scannerKey)
     {
         try

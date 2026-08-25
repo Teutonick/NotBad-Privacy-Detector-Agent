@@ -40,6 +40,10 @@ PrivacyAudit.sln
 │   ├── CrashLogger.cs             persistent offline diagnostic and unhandled crash logger
 │   ├── FindingFilter.cs            discrete size/age and centered bidirectional media-resolution filtering logic
 │   ├── MediaImageInfo.cs           lazy header-only image dimension reader for media filtering
+│   ├── TriageRouter.cs              cheap applicability/cost routing, ten-percent budget and diverse priority scope
+│   ├── DeepAuditRegistry.cs         extensible deep-scanner contract, registry and default detector adapters
+│   ├── PriorityAuditSession.cs      local resumable wizard state and atomic sidecar persistence
+│   ├── PriorityAuditCoordinator.cs  sequential scanner stages, isolation, checkpoints and aggregate progress
 │   ├── FindingPagination.cs        virtualization, six-page dynamic windows, and sorting
 │   ├── ObservableRangeCollection.cs batch UI notifications
 │   ├── ScanCoordinator.cs         isolated scanner execution
@@ -59,7 +63,7 @@ PrivacyAudit.sln
 │   ├── Scanners/                   independent scanner modules (Filesystem, Windows)
 │   └── Storage/                    local SQLite persistence & snapshots
 │   └── AppDataCleanupService.cs   scoped cleanup that rejects foreign roots and reparse traversal
-├── tests/PrivacyAudit.Tests/       automated tests (120 unit tests)
+├── tests/PrivacyAudit.Tests/       automated core, storage, UI-construction and lifecycle tests
 ├── scripts/verify.ps1              mandatory release verification
 ├── scripts/package-release.ps1     verified versioned ZIP + legal/privacy/license documents
 ├── Directory.Build.props           isolated build outputs, no lock against running release
@@ -68,7 +72,7 @@ PrivacyAudit.sln
 └── dist/                           generated verified executable (ignored by Git)
 ```
 
-`UI → ScanCoordinator → IPrivacyScanner[] → Finding[] → Pii/Secret/Config/Identity/Archive/EXIF Detectors → optional local Application History post-processing → TF-IDF & dHash Similarity Engine → SQLite + views`
+`UI → ScanCoordinator → IPrivacyScanner[] → Finding[] → TriageRouter → IDeepAuditScanner registry → priority report → optional manual deep checks/Application History/Similarity → SQLite + snapshots + views`
 
 Scanner errors are isolated. Cancellation returns a partial report. System culture selects Russian only for `ru-*`; every other culture falls back to English. Russian localization strictly employs a friendly and respectful informal tone ("ты") without bureaucratese or formal "Вы".
 
@@ -86,6 +90,7 @@ Scanner errors are isolated. Cancellation returns a partial report. System cultu
 - **Detection-first Findings order**: The default grid order puts confirmed detector evidence ahead of scanned-clear and `Unknown` findings, using evidence volume, category breadth and then the compact Privacy Risk average. Scanner completion state is persisted in finding metadata so `Unknown` remains distinct from a completed scan with no confirmed detections.
 - **Findings risk clarity**: the compact `Privacy Risk` column is shown before the separate `Detect Risk` severity column; a dismissible yellow research hint appears after a primary audit until a deep research action completes or the user closes the hint.
 - **Fundamental Findings reset**: clearing filters restores the evidence-first `DetectionPriorityRank` order, so confirmed detector content remains above less-researched items after reset.
+- **Priority deep-check wizard**: after the primary audit, Overview offers a budgeted local pass over a diverse scope of up to 10%. The dynamic Priority Report appears only after completion and reuses the same findings, Details navigation and file context actions without exposing scanner-launch controls.
 
 # Selection, deletion and cancellation UX
 

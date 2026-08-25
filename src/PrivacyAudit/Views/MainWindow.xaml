@@ -8,9 +8,35 @@
   <Grid>
     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="430"/></Grid.ColumnDefinitions>
     <StackPanel VerticalAlignment="Center" Margin="0,0,34,0">
-      <Border Background="#22FFFFFF" CornerRadius="12" Width="44" Height="44" HorizontalAlignment="Left" Margin="0,0,0,16"><TextBlock Text="⌁" FontSize="25" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-      <TextBlock Text="{local:Loc PrivacyRadarTitle}" FontSize="24" FontWeight="SemiBold"/>
-      <TextBlock Text="{local:Loc PrivacyRadarDescription}" TextWrapping="Wrap" Foreground="#C8D4E8" FontSize="14" LineHeight="21" Margin="0,8,0,20"/>
+      <StackPanel x:Name="PrivacyRadarIntroPanel">
+        <Border Background="#22FFFFFF" CornerRadius="12" Width="44" Height="44" HorizontalAlignment="Left" Margin="0,0,0,16"><TextBlock Text="⌁" FontSize="25" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+        <TextBlock Text="{local:Loc PrivacyRadarTitle}" FontSize="24" FontWeight="SemiBold"/>
+        <TextBlock Text="{local:Loc PrivacyRadarDescription}" TextWrapping="Wrap" Foreground="#C8D4E8" FontSize="14" LineHeight="21" Margin="0,8,0,20"/>
+      </StackPanel>
+      <StackPanel x:Name="PriorityAuditWizardPanel" Visibility="Collapsed" Margin="0,0,0,16">
+        <TextBlock Text="{local:Loc PriorityWizardTitle}" FontSize="24" FontWeight="SemiBold"/>
+        <StackPanel x:Name="PriorityWizardReadyPanel">
+          <TextBlock x:Name="PriorityWizardReadyText" TextWrapping="Wrap" Foreground="#C8D4E8" FontSize="14" LineHeight="21" Margin="0,8,0,14"/>
+          <TextBlock x:Name="PriorityWizardPlanText" Foreground="#9FE6B0" TextWrapping="Wrap" Margin="0,0,0,14"/>
+          <StackPanel Orientation="Horizontal">
+            <Button x:Name="PriorityWizardStartButton" Style="{StaticResource PrimaryButton}" Click="PriorityWizardStart_Click" Content="{local:Loc PriorityWizardStart}" ToolTip="{local:Loc PriorityWizardStartHelp}"/>
+            <Button x:Name="PriorityWizardSkipButton" Click="PriorityWizardSkip_Click" Content="{local:Loc PriorityWizardSkip}" ToolTip="{local:Loc PriorityWizardSkipHelp}"/>
+          </StackPanel>
+        </StackPanel>
+        <StackPanel x:Name="PriorityWizardRunningPanel" Visibility="Collapsed">
+          <TextBlock x:Name="PriorityWizardStageText" TextWrapping="Wrap" Foreground="#C8D4E8" Margin="0,8,0,8"/>
+          <ProgressBar x:Name="PriorityWizardProgress" Height="8" Minimum="0" Maximum="1" Margin="0,0,0,8"/>
+          <TextBlock x:Name="PriorityWizardProgressText" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+          <StackPanel Orientation="Horizontal">
+            <Button x:Name="PriorityWizardPauseButton" Click="PriorityWizardPause_Click" Content="{local:Loc PauseScan}" ToolTip="{local:Loc PriorityWizardPauseHelp}"/>
+            <Button x:Name="PriorityWizardCancelButton" Click="PriorityWizardCancel_Click" Content="{local:Loc CancelScan}" ToolTip="{local:Loc PriorityWizardCancelHelp}"/>
+          </StackPanel>
+        </StackPanel>
+        <StackPanel x:Name="PriorityWizardCompletePanel" Visibility="Collapsed">
+          <TextBlock x:Name="PriorityWizardCompleteText" TextWrapping="Wrap" Foreground="#9FE6B0" FontSize="14" LineHeight="21" Margin="0,8,0,14"/>
+          <Button x:Name="PriorityWizardReportButton" Style="{StaticResource PrimaryButton}" Click="PriorityWizardReport_Click" Content="{local:Loc PriorityWizardOpenReport}" HorizontalAlignment="Left" ToolTip="{local:Loc PriorityWizardOpenReportHelp}"/>
+        </StackPanel>
+      </StackPanel>
       <StackPanel Orientation="Horizontal">
         <Button x:Name="ScanButton" Style="{StaticResource PrimaryButton}" Click="Scan_Click" Content="{local:Loc StartScan}"/>
         <Button x:Name="CancelButton" Click="Cancel_Click" Content="{local:Loc StopScan}" IsEnabled="False" Visibility="Collapsed"/>
@@ -41,6 +67,41 @@
 </Border>
 <Grid Grid.Row="2"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><DockPanel Margin="2,0,2,10"><TextBlock Text="{local:Loc AuditResults}" FontSize="19" FontWeight="SemiBold"/><TextBlock DockPanel.Dock="Right" Text="SCAN  →  CLASSIFY  →  REPORT" Style="{StaticResource MutedText}" FontSize="11" VerticalAlignment="Center"/></DockPanel><ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><StackPanel><Border x:Name="EmptyDashboard" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="18" Padding="40" Margin="0,0,0,12"><StackPanel HorizontalAlignment="Center"><Border Width="62" Height="62" CornerRadius="31" Background="#140A84FF" Margin="0,6,0,16"><TextBlock Text="◎" Foreground="#69B7FF" FontSize="30" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="{local:Loc EmptyDashboard}" FontSize="17" FontWeight="SemiBold"/><TextBlock Text="{local:Loc EmptyDashboardDescription}" Style="{StaticResource MutedText}" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="620" Margin="0,7,0,6"/></StackPanel></Border><WrapPanel x:Name="DashboardPanel"/></StackPanel></ScrollViewer></Grid>
 <Border Grid.Row="3" Margin="0,14,0,0" Background="#0DFFFFFF" CornerRadius="12" Padding="13,9"><DockPanel><ProgressBar x:Name="Busy" Width="130" Height="4" IsIndeterminate="True" Visibility="Collapsed" Margin="0,0,12,0"/><ProgressBar x:Name="CancellationProgress" Width="130" Height="4" IsIndeterminate="True" Visibility="Collapsed" Margin="0,0,12,0"/><TextBlock x:Name="CancellationText" Text="{local:Loc CancellationInProgress}" Style="{StaticResource MutedText}" Visibility="Collapsed" Margin="0,0,12,0"/><TextBlock x:Name="StatusText" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"/><TextBlock x:Name="CountersText" DockPanel.Dock="Right" Foreground="#B9C2D1" FontSize="12"/></DockPanel></Border></Grid></TabItem>
+
+<TabItem x:Name="TabPriorityReport" Header="{local:Loc PriorityReportNav}" Visibility="Collapsed">
+  <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <StackPanel Margin="0,0,0,16">
+      <TextBlock Text="{local:Loc PriorityReportTitle}" FontSize="30" FontWeight="SemiBold"/>
+      <TextBlock x:Name="PriorityReportDescriptionText" Text="{local:Loc PriorityReportDescription}" Style="{StaticResource MutedText}" FontSize="14" Margin="0,4,0,0" TextWrapping="Wrap"/>
+    </StackPanel>
+    <Border Grid.Row="1" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="14" Margin="0,0,0,12">
+      <WrapPanel>
+        <ComboBox x:Name="PriorityReportRiskFilter" Width="155" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc RiskFilterHelp}"><ComboBoxItem Content="{local:Loc AllRisks}" Tag="All" IsSelected="True"/><ComboBoxItem Content="{local:Loc Critical}" Tag="Critical"/><ComboBoxItem Content="{local:Loc High}" Tag="High"/><ComboBoxItem Content="{local:Loc Medium}" Tag="Medium"/><ComboBoxItem Content="{local:Loc Low}" Tag="Low"/></ComboBox>
+        <ComboBox x:Name="PriorityReportCategoryFilter" Width="180" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc CategoryFilterHelp}"/>
+        <ComboBox x:Name="PriorityReportStatusFilter" Width="190" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc PriorityReportStatusHelp}"><ComboBoxItem Content="{local:Loc PriorityReportConfirmed}" Tag="Confirmed" IsSelected="True"/><ComboBoxItem Content="{local:Loc PriorityReportAllResearched}" Tag="All"/><ComboBoxItem Content="{local:Loc PriorityReportClear}" Tag="Clear"/><ComboBoxItem Content="{local:Loc PriorityReportErrors}" Tag="Errors"/></ComboBox>
+        <ComboBox x:Name="PriorityReportSortFilter" Width="180" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc PriorityReportSortHelp}"><ComboBoxItem Content="{local:Loc PriorityReportDetectionSort}" Tag="Detection" IsSelected="True"/><ComboBoxItem Content="{local:Loc PrivacyRisk}" Tag="Privacy"/><ComboBoxItem Content="{local:Loc Modified}" Tag="Modified"/></ComboBox>
+        <TextBox x:Name="PriorityReportSearchBox" Width="210" Height="34" Margin="0,0,8,8" TextChanged="PriorityReportSearch_Changed" ToolTip="{local:Loc SearchBoxHelp}"/>
+        <Button Click="PriorityReportReset_Click" Content="{local:Loc ResetFilters}" Padding="12,7" Margin="0,0,0,8" ToolTip="{local:Loc ResetFiltersHelp}"/>
+      </WrapPanel>
+    </Border>
+    <Border Grid.Row="2" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="18" Padding="8">
+      <DataGrid x:Name="PriorityReportGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" PreviewMouseRightButtonDown="Finding_RightClick" SelectionChanged="PriorityReportFinding_Selected" MouseDoubleClick="PriorityReportGrid_MouseDoubleClick">
+        <DataGrid.Columns>
+          <DataGridTemplateColumn Header="{local:Loc Preview}" Width="68"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Width="42" Height="36" Background="#18FFFFFF" CornerRadius="8" HorizontalAlignment="Center"><Grid><TextBlock Text="{Binding Category, Converter={StaticResource FileGlyphConverter}}" Foreground="#69B7FF" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/><local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="64" Width="38" Height="32" Stretch="Uniform"/></Grid></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+          <DataGridTemplateColumn Header="{local:Loc PrivacyRisk}" Width="132"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal" HorizontalAlignment="Center"><TextBlock Text="{Binding ObjectivePrivacyRisk}"/><TextBlock Text="|" Foreground="#77849A" Margin="1,0,1,0"/><TextBlock Text="{Binding CombinedPriority}" Foreground="#69B7FF"/></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+          <DataGridTextColumn Header="{local:Loc DetectRisk}" Binding="{Binding RiskLevel}" Width="110"/>
+          <DataGridTextColumn Header="{local:Loc Type}" Binding="{Binding Category}" Width="120"/>
+          <DataGridTextColumn Header="{local:Loc Name}" Binding="{Binding DisplayName}" Width="*"/>
+          <DataGridTemplateColumn Header="DETECTIONS" Width="165"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding MetadataJson, Converter={StaticResource FindingBadgeConverter}}" Foreground="#FF9F0A" FontWeight="SemiBold" FontSize="11" TextTrimming="CharacterEllipsis"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+          <DataGridTextColumn Header="{local:Loc Size}" Binding="{Binding SizeDisplay}" Width="90"/>
+          <DataGridTextColumn Header="{local:Loc Age}" Binding="{Binding AgeClass}" Width="100"/>
+          <DataGridTextColumn Header="{local:Loc Modified}" Binding="{Binding ModifiedAt, StringFormat={}{0:yyyy-MM-dd}}" Width="110"/>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Border>
+  </Grid>
+</TabItem>
 
 <TabItem x:Name="TabFindings" Header="{local:Loc NavFindings}">
   <Grid>

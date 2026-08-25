@@ -17,6 +17,7 @@ NotBad Privacy Detector Agent brings those traces together, explains the risk an
 ## Highlights
 
 - **Privacy Radar that gets sharper over time.** Objective scanner risk and personal attention stay independent, combine transparently for ranking, and every local deep check refreshes both without hiding confirmed threats.
+- **A guided priority deep check.** Triage Router cheaply selects a diverse, budgeted scope of up to 10% and sends each object only to applicable local deep scanners, then opens a focused priority report.
 - **Digital archaeology in one place.** Discover personal data, credentials, forgotten application traces, sensitive archives, media metadata and duplicates across the PC.
 - **Risk you can understand.** Findings come with evidence and context, so a scary score is never the whole explanation.
 - **Discover where it came from.** Investigate a selected file's likely origin and connections to local software without turning the audit into guesswork.
@@ -76,9 +77,9 @@ Your privacy priorities are personal. Rate findings with 👍 or 👎, and an op
 ## From broad map to confirmed findings
 
 1. Run a quick initial assessment to build the local privacy map.
-2. Let evidence, sorting and your local AI narrow the candidate set.
-3. Launch focused checks for personal data, secrets, people, documents, archives or similar files.
-4. Return later to the automatically restored radar, where confirmed signals remain available and rank the most meaningful findings higher.
+2. Let Triage Router select a diverse, budgeted priority scope and run only applicable deep checks.
+3. Review confirmed evidence in the priority report or launch additional focused checks manually.
+4. Return later to the automatically restored radar, where completed work remains available and ranks meaningful findings higher.
 
 The app does not decide what you should delete. File actions are explicit and separately confirmed.
 

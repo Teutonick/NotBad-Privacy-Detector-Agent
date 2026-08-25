@@ -16,6 +16,8 @@ Snapshot and similarity coverage verifies that completed per-object similarity m
 
 Overview state coverage verifies that the primary-audit Stop button is hidden while the form is idle, during restore and after restore, while the separate restore-cancel action remains available. The folder path field and picker button are also checked visually as one horizontal control row.
 
+Triage Router coverage verifies scanner applicability, soft down-ranking of thumbnails without exclusion, ten-percent selection, the absolute cap, registry-driven future-scanner execution and local session round-tripping. Manual wizard checks cover preparation off the dispatcher, pause/resume/cancel persistence, unavailable-scanner isolation, stage snapshots, read-only controls during execution, dynamic report visibility and return navigation from the priority grid.
+
 Privacy Radar coverage verifies audit-context snapshot round-tripping, backward-compatible optional context, evidence-aware ranking from persisted deep-detector metadata, and safe audit-result reset that does not erase personal feedback or exclusions.
 
 Personal-model coverage verifies independent objective/personal axes, the 80/20 combined priority, bounded critical-evidence floors, the combined Privacy Risk average sort key, detection-evidence priority over an unknown Recent item, Unknown versus scanned-clear states, feedback-to-deep-signal event history, refreshed feature snapshots, schema compatibility and validation-metric generation during training.
