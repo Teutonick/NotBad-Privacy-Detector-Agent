@@ -268,7 +268,7 @@ public partial class MainWindow : Window
                 if (element is TextBlock text && text.Text.Contains("SCAN") && text.Text.Contains("REPORT"))
                     text.Visibility = Visibility.Collapsed;
                 if (element is System.Windows.Controls.Button button && button.Content?.ToString() == LocalizationService.Get("ChooseFolder"))
-                    button.MinWidth = 112;
+                    button.SetCurrentValue(FrameworkElement.WidthProperty, 150d);
             }
         };
         var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NotBadPrivacyDetectorAgent");
@@ -284,7 +284,7 @@ public partial class MainWindow : Window
         RootsBox.Text = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         RootsBox.Width = 255;
         _chooseButton = (RootsBox.Parent as System.Windows.Controls.Panel)?.Children.OfType<System.Windows.Controls.Button>().FirstOrDefault();
-        _chooseButton?.SetCurrentValue(FrameworkElement.WidthProperty, 90d);
+        _chooseButton?.SetCurrentValue(FrameworkElement.WidthProperty, 150d);
         _driveBox.SelectionChanged += DriveBox_SelectionChanged;
         if (RootsBox.Parent is System.Windows.Controls.Panel targetPanel) targetPanel.Children.Insert(0, _driveBox);
         PresetBox.SelectionChanged += PresetBox_SelectionChanged;
@@ -521,6 +521,8 @@ public partial class MainWindow : Window
     void ShowPreviousAuditSummary(ScanSnapshot snapshot)
     {
         _newAuditSettingsVisible = false;
+        CancelButton.IsEnabled = false;
+        CancelButton.Visibility = Visibility.Collapsed;
         ScanSettingsPanel.Visibility = Visibility.Collapsed;
         PreviousAuditPanel.Visibility = Visibility.Visible;
         ScanButton.Visibility = Visibility.Collapsed;
@@ -558,6 +560,8 @@ public partial class MainWindow : Window
     void ShowNewAuditSettings()
     {
         _newAuditSettingsVisible = true;
+        CancelButton.IsEnabled = false;
+        CancelButton.Visibility = Visibility.Collapsed;
         PreviousAuditPanel.Visibility = Visibility.Collapsed;
         ScanSettingsPanel.Visibility = Visibility.Visible;
         ScanButton.Visibility = Visibility.Visible;
@@ -653,7 +657,7 @@ public partial class MainWindow : Window
 
         _cts = new(); _findingsResearchHintDismissed = false; _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; _peopleScanImages = []; _documentScanImages = []; _peopleScanState.Reset(); _documentScanState.Reset(); DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
         _auditContext = new(preset, roots, _scanStart, _scanStart, TimeSpan.Zero);
-        ScanButton.IsEnabled = false; CancelButton.IsEnabled = true; Busy.Visibility = Visibility.Visible;
+        ScanButton.IsEnabled = false; CancelButton.IsEnabled = true; CancelButton.Visibility = Visibility.Visible; Busy.Visibility = Visibility.Visible;
         try
         {
             var progress = new Progress<ScanProgress>(p => { StatusText.Text = $"{LocalizationService.Get("FileCount")}: {p.Files:N0}   {LocalizationService.Get("DataCount")}: {Format.Bytes(p.Bytes)}   {LocalizationService.Get("FindingCount")}: {p.Findings:N0}"; CountersText.Text = $"{p.Scanner}: {p.CurrentPath}"; });
@@ -680,7 +684,7 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException) { StatusText.Text = LocalizationService.Get("ScanCanceled"); }
         catch (Exception ex) { System.Windows.MessageBox.Show(ex.Message, "NotBad Privacy Detector Agent", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error); StatusText.Text = LocalizationService.Get("ScanFailed"); }
-        finally { guard.Dispose(); _cts.Dispose(); _cts = null; ScanButton.IsEnabled = true; CancelButton.IsEnabled = false; Busy.Visibility = Visibility.Collapsed; }
+        finally { guard.Dispose(); _cts.Dispose(); _cts = null; ScanButton.IsEnabled = true; CancelButton.IsEnabled = false; CancelButton.Visibility = Visibility.Collapsed; Busy.Visibility = Visibility.Collapsed; }
     }
 
     void RefreshApplicationHistorySummary()
