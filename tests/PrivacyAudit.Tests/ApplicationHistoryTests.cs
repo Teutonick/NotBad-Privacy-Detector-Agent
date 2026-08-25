@@ -92,6 +92,31 @@ public sealed class ApplicationHistoryTests
         Assert.Equal(expected, HistoricalPathRisk.Score(path));
     }
 
+    [Theory]
+    [InlineData(true, true, 4)]
+    [InlineData(true, false, 3)]
+    [InlineData(false, true, 2)]
+    [InlineData(false, false, 1)]
+    public void ApplicationHistoryOrderingPrioritizesAvailabilityAndMenuState(bool existsNow, bool isPinned, int expectedPriority)
+    {
+        var entry = new ApplicationHistoryEntry("C:\\history\\item.pdf", null, 0, isPinned, existsNow, "test", "test");
+
+        Assert.Equal(expectedPriority, ApplicationHistoryOrdering.Priority(entry));
+    }
+
+    [Fact]
+    public void ApplicationHistoryOrderingPlacesAvailablePinnedEntriesFirst()
+    {
+        var entries = new[]
+        {
+            new ApplicationHistoryEntry("missing-pinned", null, 0, true, false, "test", "test"),
+            new ApplicationHistoryEntry("available", null, 0, false, true, "test", "test"),
+            new ApplicationHistoryEntry("available-pinned", null, 0, true, true, "test", "test")
+        };
+
+        Assert.Equal(["available-pinned", "available", "missing-pinned"], ApplicationHistoryOrdering.OrderEntries(entries).Select(x => x.TargetPath).ToArray());
+    }
+
 
     static byte[] BuildRelativePathLink(string target)
     {

@@ -42,6 +42,31 @@ public sealed record ApplicationHistoryEntry(
     void OnChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
 }
 
+public static class ApplicationHistoryOrdering
+{
+    // Available and menu-pinned objects are the strongest application-history signal.
+    public static int Priority(ApplicationHistoryEntry entry) =>
+        (entry.ExistsNow, entry.IsPinned) switch
+        {
+            (true, true) => 4,
+            (true, false) => 3,
+            (false, true) => 2,
+            _ => 1
+        };
+
+    public static IEnumerable<ApplicationHistoryEntry> OrderEntries(IEnumerable<ApplicationHistoryEntry> entries) =>
+        entries.OrderByDescending(Priority)
+            .ThenByDescending(entry => entry.EffectiveRisk)
+            .ThenByDescending(entry => entry.LastInteraction ?? DateTime.MinValue)
+            .ThenBy(entry => entry.TargetPath, StringComparer.CurrentCultureIgnoreCase);
+
+    public static IEnumerable<ApplicationHistoryApplication> OrderApplications(IEnumerable<ApplicationHistoryApplication> applications) =>
+        applications.OrderByDescending(app => app.Entries.Select(Priority).DefaultIfEmpty().Max())
+            .ThenByDescending(app => app.Entries.Select(entry => (int)entry.EffectiveRisk).DefaultIfEmpty().Max())
+            .ThenByDescending(app => app.LastInteraction ?? DateTime.MinValue)
+            .ThenBy(app => app.Identity.DisplayName, StringComparer.CurrentCultureIgnoreCase);
+}
+
 public sealed record ApplicationHistoryApplication(
     ApplicationIdentity Identity,
     IReadOnlyList<ApplicationHistoryEntry> Entries,

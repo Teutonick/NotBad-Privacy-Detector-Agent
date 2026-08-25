@@ -822,10 +822,14 @@ public partial class MainWindow : Window
                 if (query.Length > 0 && !entry.TargetPath.Contains(query, StringComparison.CurrentCultureIgnoreCase) && !app.Identity.DisplayName.Contains(query, StringComparison.CurrentCultureIgnoreCase)) return false;
                 return true;
             }).ToArray();
-            if (sort == "AiPriority") entries = entries.OrderByDescending(x => x.PersonalAttentionScore ?? -1).ThenByDescending(x => x.LastInteraction).ToArray();
+            entries = sort == "AiPriority"
+                ? entries.OrderByDescending(x => x.PersonalAttentionScore ?? -1).ThenByDescending(x => x.LastInteraction).ToArray()
+                : ApplicationHistoryOrdering.OrderEntries(entries).ToArray();
             if (entries.Length > 0) filteredApplications.Add(app with { Entries = entries });
         }
-        if (sort == "AiPriority") filteredApplications = filteredApplications.OrderByDescending(x => x.PersonalAttentionScore ?? -1).ThenByDescending(x => x.Entries.Count).ToList();
+        filteredApplications = sort == "AiPriority"
+            ? filteredApplications.OrderByDescending(x => x.PersonalAttentionScore ?? -1).ThenByDescending(x => x.Entries.Count).ToList()
+            : ApplicationHistoryOrdering.OrderApplications(filteredApplications).ToList();
         CaptureApplicationHistoryViewState();
         _visibleApplicationHistoryApplications.ReplaceRange(filteredApplications);
         _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(RestoreApplicationHistoryViewState));
@@ -1909,9 +1913,11 @@ public partial class MainWindow : Window
         PersonalRecommendationOnly.IsChecked = false;
         FindingsSizeSlider.Value = 0;
         FindingsAgeSlider.Value = 0;
-        _sortProperty = nameof(Finding.ModifiedAt);
+        _sortProperty = nameof(Finding.DetectionPriorityRank);
         _sortDescending = true;
         foreach (var column in FindingsGrid.Columns) column.SortDirection = null;
+        var detectionColumn = FindingsGrid.Columns.FirstOrDefault(column => column.SortMemberPath == nameof(Finding.DetectionPriorityRank));
+        if (detectionColumn is not null) detectionColumn.SortDirection = ListSortDirection.Descending;
         RefreshFindingsPage(true);
     }
 

@@ -197,7 +197,7 @@ public static class LocalizationService
         ["SearchBoxHelp"] = "Search findings by file name or path substring.",
         ["FilterSizeHelp"] = "Filter files by minimum size (from kilobytes to gigabytes).",
         ["FilterAgeHelp"] = "Filter files by time since last modification (recent to long-forgotten).", ["MediaResolutionFilterHelp"] = "The center means all resolutions. Move right for at least this many pixels, or left for fewer pixels. Headers are read only when this media filter is used; the main audit is unchanged.",
-        ["ResetFiltersHelp"] = "Reset all filters, search query, and sorting back to defaults.",
+        ["ResetFiltersHelp"] = "Reset filters and restore the evidence-first detection ranking.",
         ["TileViewHelp"] = "Toggle between detailed table list and visual preview tiles.",
         ["TileSizeHelp"] = "Adjust the display scale of preview tiles.",
         ["PreviousPageHelp"] = "Navigate to the previous page of findings.",
@@ -213,7 +213,7 @@ public static class LocalizationService
         ["PeopleScanCancelHelp"] = "Stop the active media scanning process.",
         ["RemovePeopleModelHelp"] = "Delete the downloaded YuNet neural network model from disk to save space.",
         ["MediaPageDescription"] = "Review found images and run targeted people, document and metadata searches.",
-        ["DetectionUnknown"] = "Unknown", ["DetectionNoFindings"] = "No confirmed detections",
+        ["DetectionUnknown"] = "Unknown", ["DetectionNoFindings"] = "No", ["ApplicationHistoryAvailabilitySortHelp"] = "Default order: available and menu-pinned objects first, then available-only, historical-pinned and historical-only. AI priority is an optional alternative.",
         ["FindingsResearchHint"] = "To assess risks using personal data, secrets, passwords, configs and digital traces, run the corresponding research actions below. The ranking updates after each additional investigation.", ["FindingsResearchHintClose"] = "Close this research hint",
         ["OpenFileHelp"] = "Open this file with the default Windows application."
     };
@@ -364,7 +364,7 @@ public static class LocalizationService
         ["SearchBoxHelp"] = "Быстрый поиск находок по имени файла или фрагменту пути.",
         ["FilterSizeHelp"] = "Фильтрует файлы по минимальному размеру (от нескольких килобайт до гигабайт).",
         ["FilterAgeHelp"] = "Фильтрует файлы по времени последнего изменения (от свежих до старых забытых файлов).", ["MediaResolutionFilterHelp"] = "Центр означает любые размеры. Двигай вправо, чтобы оставить изображения не меньше выбранного числа пикселей, или влево — меньше выбранного. Заголовки файлов читаются только при использовании этого фильтра; основной аудит не меняется.",
-        ["ResetFiltersHelp"] = "Сбрасывает все фильтры, поиск и сортировку к исходным значениям.",
+        ["ResetFiltersHelp"] = "Сбрасывает фильтры и возвращает сортировку по фундаментальным подтверждённым детектам.",
         ["TileViewHelp"] = "Переключает режим отображения между таблицей со списком и плитками с предпросмотром.",
         ["TileSizeHelp"] = "Настраивает размер карточек предпросмотра на странице.",
         ["PreviousPageHelp"] = "Перейти на предыдущую страницу результатов.",
@@ -380,7 +380,7 @@ public static class LocalizationService
         ["PeopleScanCancelHelp"] = "Останавливает текущее сканирование лиц или документов.",
         ["RemovePeopleModelHelp"] = "Удаляет скачанную модель нейросети YuNet с диска для освобождения места.",
         ["MediaPageDescription"] = "Просматривай найденные изображения и запускай точечный поиск людей, документов и метаданных.",
-        ["DetectionUnknown"] = "Не проверено", ["DetectionNoFindings"] = "Подтверждённых детектов нет",
+        ["DetectionUnknown"] = "Не проверено", ["DetectionNoFindings"] = "Нет", ["ApplicationHistoryAvailabilitySortHelp"] = "Основной порядок: сначала доступные и сохранённые в меню объекты, затем доступные, исторически сохранённые и только исторические. ИИ-приоритет — альтернативный режим.",
         ["FindingsResearchHint"] = "Чтобы оценить риски с учётом ПДн, секретов, паролей, конфигураций и цифровых следов, запусти соответствующие исследования ниже. Рейтинг перестроится после каждого дополнительного исследования.", ["FindingsResearchHintClose"] = "Закрыть подсказку об исследовании",
         ["OpenFileHelp"] = "Открыть этот файл в стандартной программе Windows."
     };
