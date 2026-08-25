@@ -709,6 +709,11 @@ public partial class MainWindow : Window
         PriorityWizardProgressText.Text = string.Format(LocalizationService.Get("PriorityWizardProgress"), session.Progress, session.CompletedRouteCount, session.TotalRoutes, session.ConfirmedSignals, session.Errors);
         PriorityWizardCompleteText.Text = string.Format(LocalizationService.Get("PriorityWizardComplete"), session.FindingIds.Count, session.ConfirmedSignals, session.Errors);
         TabPriorityReport.Visibility = session.Status == PriorityAuditStatus.Completed ? Visibility.Visible : Visibility.Collapsed;
+        var reportReady = session.Status == PriorityAuditStatus.Completed;
+        PriorityWizardReportButton.IsEnabled = reportReady;
+        PriorityWizardReportButton.IsHitTestVisible = reportReady;
+        PriorityWizardFullReportButton.IsEnabled = reportReady;
+        PriorityWizardFullReportButton.IsHitTestVisible = reportReady;
         UpdatePriorityPartialHints();
     }
 
@@ -811,6 +816,12 @@ public partial class MainWindow : Window
         RefreshPriorityReport();
         TabPriorityReport.Visibility = Visibility.Visible;
         TabPriorityReport.IsSelected = true;
+    }
+
+    void PriorityWizardFullReport_Click(object sender, RoutedEventArgs e)
+    {
+        TabFindings.IsSelected = true;
+        RefreshFindingsPage(true);
     }
 
     void RefreshPriorityReportCategories()

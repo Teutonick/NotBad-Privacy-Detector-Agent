@@ -30,6 +30,11 @@ NotBad Privacy Detector Agent собирает эти следы вместе, �
 ### Как это выглядит
 
 <p align="center">
+  <img src="docs/assets/readme-priority-wizard.png" alt="ИИ-визард приоритетной проверки в NotBad Privacy Detector Agent" width="960">
+</p>
+<p align="center"><em>✨ ИИ-визард приоритетной проверки: подсветь самые рискованные объекты за два клика и сначала исследуй самое важное.</em></p>
+
+<p align="center">
   <img src="docs/assets/readme-audit-overview.png" alt="Общий экран аудита NotBad Privacy Detector Agent" width="960">
 </p>
 <p align="center"><em>Обзор аудита: выбери область проверки и посмотри результаты, сгруппированные по категориям приватности.</em></p>

@@ -30,6 +30,11 @@ NotBad Privacy Detector Agent brings those traces together, explains the risk an
 ### See it in action
 
 <p align="center">
+  <img src="docs/assets/readme-priority-wizard.png" alt="NotBad Privacy Detector Agent AI priority wizard highlighting the riskiest objects" width="960">
+</p>
+<p align="center"><em>✨ AI priority wizard: highlight the riskiest objects in two clicks, then investigate the most valuable part of the audit first.</em></p>
+
+<p align="center">
   <img src="docs/assets/readme-audit-overview.png" alt="NotBad Privacy Detector Agent audit overview" width="960">
 </p>
 <p align="center"><em>Audit overview: choose the scan scope and see the results grouped by privacy-relevant category.</em></p>

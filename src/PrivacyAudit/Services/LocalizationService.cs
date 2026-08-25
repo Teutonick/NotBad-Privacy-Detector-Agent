@@ -395,11 +395,27 @@ public static class LocalizationService
         ["OpenFileHelp"] = "Открыть этот файл в стандартной программе Windows."
     };
 
+    static readonly IReadOnlyDictionary<string, string> AdditionalEn = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["OpenFullReport"] = "Open FULL report", ["OpenFullReportHelp"] = "Open the complete audit in Findings.",
+        ["PeopleScanDescription"] = "Local face search; images stay on this computer.", ["DocumentScanDescription"] = "Local search for passports, ID cards and printed documents.",
+        ["AccuracyDisclaimer"] = "Privacy Detector may make mistakes. Signals are informational only. Always verify them against reality before taking action.", ["FindingsHelp"] = "Privacy Detector may make mistakes. Signals are informational only. Always verify them against reality before taking action."
+    };
+    static readonly IReadOnlyDictionary<string, string> AdditionalRu = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["OpenFullReport"] = "Открыть ПОЛНЫЙ отчёт", ["OpenFullReportHelp"] = "Открывает полный аудит во вкладке «Находки».",
+        ["PeopleScanDescription"] = "Локальный поиск лиц; изображения остаются на этом компьютере.", ["DocumentScanDescription"] = "Локальный поиск паспортов, ID-карт и печатных документов.",
+        ["AccuracyDisclaimer"] = "Privacy Detector может допускать ошибки. Сигналы носят исключительно информационный характер. Обязательно проверяй соответствие с действительностью прежде, чем предпринимать действия.", ["FindingsHelp"] = "Privacy Detector может допускать ошибки. Сигналы носят исключительно информационный характер. Обязательно проверяй соответствие с действительностью прежде, чем предпринимать действия."
+    };
+
     public static bool IsRussian(CultureInfo? culture = null) => (culture ?? _currentCulture).TwoLetterISOLanguageName.Equals("ru", StringComparison.OrdinalIgnoreCase);
     public static string Get(string key, CultureInfo? culture = null)
     {
         var selected = IsRussian(culture) ? Ru : En;
-        return selected.TryGetValue(key, out var text) ? text : En.TryGetValue(key, out text) ? text : key;
+        var additional = IsRussian(culture) ? AdditionalRu : AdditionalEn;
+        if (additional.TryGetValue(key, out var additionalText)) return additionalText;
+        var text = selected.TryGetValue(key, out var localized) ? localized : En.TryGetValue(key, out var fallback) ? fallback : key;
+        return key is "PriorityWizardTitle" or "PriorityReportNav" or "PriorityReportTitle" ? $"✨ {text}" : text;
     }
 }
 
