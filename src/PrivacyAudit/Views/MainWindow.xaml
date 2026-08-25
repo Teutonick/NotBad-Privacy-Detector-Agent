@@ -226,13 +226,14 @@
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     
     <!-- Tab Header with Title and Prominent Legend Button -->
-    <DockPanel Margin="0,0,0,16">
-      <StackPanel VerticalAlignment="Center">
+    <Grid Margin="0,0,0,16">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
         <TextBlock Text="{local:Loc MediaTitle}" FontSize="30" FontWeight="SemiBold"/>
         <TextBlock Text="{local:Loc MediaAnalysisDescription}" Style="{StaticResource MutedText}" FontSize="14" TextWrapping="Wrap" Margin="0,4,0,0"/>
       </StackPanel>
-      <Button x:Name="MediaLegendToggle" DockPanel.Dock="Right" Click="MediaLegendToggle_Click" Content="{local:Loc LegendButton}" Padding="14,8" FontSize="12" FontWeight="SemiBold" Background="#1C0A84FF" Foreground="#69B7FF" BorderThickness="1" BorderBrush="#3D0A84FF" HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="{local:Loc LegendTitle}"/>
-    </DockPanel>
+      <Button x:Name="MediaLegendToggle" Grid.Column="1" Click="MediaLegendToggle_Click" Content="{local:Loc LegendButton}" Padding="14,8" FontSize="12" FontWeight="SemiBold" Background="#1C0A84FF" Foreground="#69B7FF" BorderThickness="1" BorderBrush="#3D0A84FF" HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="{local:Loc LegendTitle}"/>
+    </Grid>
 
     <Border Grid.Row="1" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="16" Margin="0,0,0,12">
       <StackPanel>
@@ -486,6 +487,11 @@
             <StackPanel x:Name="SimilarProgressContainer" Grid.Row="1" Margin="0,0,0,8" Visibility="Collapsed">
               <ProgressBar x:Name="SimilarProgress" Height="5" Minimum="0" Maximum="1" Value="0" Margin="0,0,0,4"/>
               <TextBlock x:Name="SimilarProgressText" Style="{StaticResource MutedText}" FontSize="11"/>
+              <WrapPanel Margin="0,7,0,0">
+                <Button x:Name="SimilarPauseButton" Click="SimilarPause_Click" Content="{local:Loc PauseScan}" Padding="10,5" Margin="0,0,6,0" ToolTip="{local:Loc SimilarPauseHelp}"/>
+                <Button x:Name="SimilarResumeButton" Click="SimilarResume_Click" Content="{local:Loc SimilarResume}" Padding="10,5" Margin="0,0,6,0" IsEnabled="False" ToolTip="{local:Loc SimilarResumeHelp}"/>
+                <Button x:Name="SimilarCancelButton" Click="SimilarCancel_Click" Content="{local:Loc CancelScan}" Padding="10,5" ToolTip="{local:Loc SimilarCancelHelp}"/>
+              </WrapPanel>
             </StackPanel>
             <TextBlock x:Name="SimilarEmptyText" Grid.Row="2" Text="{local:Loc NoSimilarFound}" Style="{StaticResource MutedText}" Visibility="Collapsed" Margin="0,8,0,0"/>
             <ListBox x:Name="SimilarFindingsList" Grid.Row="2" Background="Transparent" BorderThickness="0" MaxHeight="180" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="SimilarItem_Selected" MouseDoubleClick="SimilarItem_DoubleClick">

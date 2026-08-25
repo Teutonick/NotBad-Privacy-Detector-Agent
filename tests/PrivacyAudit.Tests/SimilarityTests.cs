@@ -160,4 +160,22 @@ public sealed class SimilarityTests
             if (File.Exists(tempFile)) File.Delete(tempFile);
         }
     }
+
+    [Fact]
+    public void SimilarityAnalysisResult_RoundTripsThroughFindingMetadata()
+    {
+        var completedAt = DateTime.UtcNow;
+        var metadata = SimilarityAnalysisResult.InjectIntoMetadata("{\"keep\":true}", new SimilarityAnalysisResult
+        {
+            Kind = "Image",
+            CompletedAtUtc = completedAt,
+            Matches = [new SavedSimilarityMatch("C:\\copy.png", 0.91, "perceptual match")]
+        });
+
+        Assert.True(SimilarityAnalysisResult.TryParse(metadata, out var restored));
+        Assert.Equal("Image", restored!.Kind);
+        Assert.Single(restored.Matches);
+        Assert.Equal("C:\\copy.png", restored.Matches[0].Path);
+        Assert.Contains("\"keep\":true", metadata);
+    }
 }

@@ -94,7 +94,8 @@ public static class ImageSimilarity
         Finding queryFinding,
         IEnumerable<Finding> candidateFindings,
         CancellationToken token = default,
-        IProgress<(int current, int total)>? progress = null)
+        IProgress<(int current, int total)>? progress = null,
+        ManualResetEventSlim? pauseGate = null)
     {
         var results = new List<SimilarityMatch>();
         var queryHash = ComputeHash(queryFinding.Path);
@@ -106,6 +107,7 @@ public static class ImageSimilarity
 
         for (int i = 0; i < candidates.Length; i++)
         {
+            pauseGate?.Wait(token);
             token.ThrowIfCancellationRequested();
             var candidate = candidates[i];
             var targetHash = ComputeHash(candidate.Path);

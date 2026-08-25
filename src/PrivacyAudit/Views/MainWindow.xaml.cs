@@ -79,9 +79,12 @@ public partial class MainWindow : Window
     readonly MediaScanOperationState _documentScanState = new();
     bool _documentScanCancelRequested;
     CancellationTokenSource? _similarCts;
+    readonly ManualResetEventSlim _similarPauseGate = new(true);
+    bool _similarPaused;
     CancellationTokenSource? _personalTrainingCts;
     CancellationTokenSource? _exifScanCts;
     CancellationTokenSource? _applicationHistoryCts;
+    readonly SemaphoreSlim _snapshotSaveGate = new(1, 1);
     readonly ObservableCollection<ApplicationHistoryApplication> _applicationHistoryApplications = [];
     readonly ObservableRangeCollection<ApplicationHistoryApplication> _visibleApplicationHistoryApplications = [];
     readonly HashSet<string> _expandedApplicationHistoryKeys = new(StringComparer.OrdinalIgnoreCase);
@@ -94,6 +97,8 @@ public partial class MainWindow : Window
     int _activeMediaTaskCount;
     AuditSnapshotContext? _auditContext;
     bool _newAuditSettingsVisible;
+    bool _peopleModelInstalled;
+    bool _peopleModelStatusKnown;
 
     sealed class ActionDisposable(Action action) : IDisposable
     {
@@ -298,12 +303,14 @@ public partial class MainWindow : Window
         ApplyPersonalState();
         Loaded += async (_, _) =>
         {
+            var modelAvailabilityTask = RefreshPeopleModelAvailabilityAsync();
             if (!suppressRestorePrompt && !_restoreStarted)
             {
                 _restoreStarted = true;
                 await TryRestoreSnapshotAsync();
                 ShowIntroIfNeeded();
             }
+            await modelAvailabilityTask;
             var stats = _db.GetPersonalModelStats(_personalModel.Metadata?.TrainedSamples ?? 0);
             if (!_personalModel.IsReady && stats.CanTrain) await TrainPersonalModelAsync();
         };
@@ -391,14 +398,15 @@ public partial class MainWindow : Window
             if (snapshot is null || snapshot.Findings.Count == 0) { ShowNewAuditSettings(); return; }
             StatusText.Text = string.Format(LocalizationService.Get("SnapshotIndexing"), snapshot.Findings.Count);
             SidebarFooterControl.SetGlobalBusy(true, StatusText.Text);
+            var prepared = await Task.Run(() => PrepareRestoredSnapshot(snapshot));
             _findings.Clear();
-            _findings.AddRange(snapshot.Findings);
+            _findings.AddRange(prepared.Findings);
             _auditContext = snapshot.Context;
             _auditAvailableForApplicationHistory = true;
             RefreshApplicationHistorySummary();
             _mediaFindings.Clear();
-            _mediaFindings.AddRange(snapshot.Findings.Where(x => x.Category == "Images" && File.Exists(x.Path)).OrderByDescending(PrivacyRadarRanking.Score).ThenByDescending(x => x.ModifiedAt ?? DateTime.MinValue));
-            ApplyPersonalState();
+            _mediaFindings.AddRange(prepared.MediaFindings);
+            UpdatePersonalModelStats();
             UpdatePeoplePresentation();
             BuildDashboard();
             RebuildCategories();
@@ -408,6 +416,26 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { ShowNewAuditSettings(); StatusText.Text = LocalizationService.Get("SnapshotUnavailable"); CrashLogger.LogException(ex, "Restore snapshot"); }
         finally { Busy.Visibility = Visibility.Collapsed; SetRestoreReadOnly(false); }
+    }
+
+    (Finding[] Findings, Finding[] MediaFindings) PrepareRestoredSnapshot(ScanSnapshot snapshot)
+    {
+        var findings = snapshot.Findings.ToArray();
+        var feedback = _db.GetPersonalFeedback(PersonalAttentionSchema.Version)
+            .GroupBy(x => x.PathKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.OrderByDescending(v => v.UpdatedAt).First(), StringComparer.OrdinalIgnoreCase);
+        var scores = _personalModel.PredictMany(findings);
+        for (var i = 0; i < findings.Length; i++)
+        {
+            feedback.TryGetValue(PersonalAttentionFeatureExtractor.PathKey(findings[i].Path), out var rating);
+            findings[i].PersonalAttentionLabel = rating?.Label;
+            findings[i].PersonalAttentionScore = scores[i];
+        }
+        var media = findings.Where(x => x.Category == "Images" && File.Exists(x.Path))
+            .OrderByDescending(PrivacyRadarRanking.Score)
+            .ThenByDescending(x => x.ModifiedAt ?? DateTime.MinValue)
+            .ToArray();
+        return (findings, media);
     }
 
     void SetRestoreReadOnly(bool readOnly)
@@ -434,8 +462,19 @@ public partial class MainWindow : Window
         PreviousAuditPathText.Text = string.Format(LocalizationService.Get("PreviousAuditPath"), context is { Roots.Count: > 0 } ? string.Join("; ", context.Roots) : LocalizationService.Get("UnknownAuditScope"));
         PreviousAuditTimeText.Text = string.Format(LocalizationService.Get("PreviousAuditTime"), (context?.CompletedAtUtc ?? snapshot.SavedAtUtc).ToLocalTime().ToString("g"), context?.Duration.ToString("hh\\:mm\\:ss") ?? "—");
         PreviousAuditFindingsText.Text = string.Format(LocalizationService.Get("PreviousAuditFindings"), snapshot.Findings.Count);
-        var enriched = snapshot.Findings.Where(x => PrivacyRadarRanking.ConfirmedSignals(x) > 0).ToArray();
-        PreviousAuditEnrichmentText.Text = string.Format(LocalizationService.Get("PreviousAuditEnrichment"), enriched.Sum(PrivacyRadarRanking.ConfirmedSignals), enriched.Length);
+        PreviousAuditEnrichmentText.Text = LocalizationService.Get("RadarSummaryPreparing");
+        UpdatePreviousAuditEnrichmentAsync(snapshot.Findings.ToArray());
+    }
+
+    async void UpdatePreviousAuditEnrichmentAsync(Finding[] findings)
+    {
+        var enrichment = await Task.Run(() =>
+        {
+            var signals = findings.Select(PrivacyRadarRanking.ConfirmedSignals).Where(x => x > 0).ToArray();
+            return (Count: signals.Length, Signals: signals.Sum());
+        });
+        if (!IsLoaded) return;
+        PreviousAuditEnrichmentText.Text = string.Format(LocalizationService.Get("PreviousAuditEnrichment"), enrichment.Signals, enrichment.Count);
     }
 
     static string LocalizedPreset(ScanPreset? preset) => preset switch
@@ -561,7 +600,7 @@ public partial class MainWindow : Window
             _db.Save(Guid.NewGuid(), _scanStart, _findings);
             var completedAt = DateTime.UtcNow;
             _auditContext = new(preset, roots, _scanStart, completedAt, completedAt - _scanStart);
-            SnapshotStore.Save(_snapshotPath, completedAt, _findings, _auditContext);
+            await Task.Run(() => SnapshotStore.Save(_snapshotPath, completedAt, _findings, _auditContext));
             BuildDashboard(); RebuildCategories(); RefreshFindingsPage(true);
             _auditAvailableForApplicationHistory = true;
             RefreshApplicationHistorySummary();
@@ -1080,7 +1119,13 @@ public partial class MainWindow : Window
         var loadSource = _pageLoadCts;
         var token = loadSource.Token;
         if (resetPage) _findingsPage = 0;
-        _sortedFindings = FindingPagination.Sort(_findings.Where(MatchesFilter), _sortProperty, _sortDescending).ToArray();
+        var candidates = _findings.Where(MatchesFilter).ToArray();
+        var sortProperty = _sortProperty;
+        var sortDescending = _sortDescending;
+        await Task.Yield();
+        var sorted = await Task.Run(() => FindingPagination.Sort(candidates, sortProperty, sortDescending).ToArray(), token);
+        token.ThrowIfCancellationRequested();
+        _sortedFindings = sorted;
         var pageSize = _imageTileMode && IsImagesFilter ? FindingPagination.TilePageSize(FindingsTileZoom.Value) : FindingPagination.ListPageSize;
         var page = FindingPagination.Slice(_sortedFindings, _findingsPage, pageSize);
         _findingsPage = page.PageIndex;
@@ -1470,9 +1515,7 @@ public partial class MainWindow : Window
 
     void UpdateModelControls()
     {
-        bool installed;
-        try { installed = _modelManager.IsInstalled; }
-        catch { installed = false; }
+        var installed = _peopleModelStatusKnown && _peopleModelInstalled;
         var modelBusy = _cts is not null;
         var peopleBusy = _peopleScanState.IsRunning;
         DownloadPeopleModelButton.Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
@@ -1483,6 +1526,14 @@ public partial class MainWindow : Window
         RemovePeopleModelButton.IsEnabled = _modelManager.HasModelFiles && !modelBusy && !peopleBusy && _activeMediaTaskCount == 0;
         PeopleScanPauseButton.IsEnabled = peopleBusy;
         PeopleScanCancelButton.IsEnabled = modelBusy || peopleBusy || _peopleScanState.IsPaused;
+    }
+
+    async Task RefreshPeopleModelAvailabilityAsync()
+    {
+        try { _peopleModelInstalled = await _modelManager.IsInstalledAsync(); }
+        catch { _peopleModelInstalled = false; }
+        _peopleModelStatusKnown = true;
+        UpdateModelControls();
     }
 
     void UpdateDocumentScanControls()
@@ -1531,7 +1582,7 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("PeopleModelDownload"));
         if (guard is null) return;
 
-        try { if (_modelManager.IsInstalled) { UpdateModelControls(); return; } }
+        try { if (await _modelManager.IsInstalledAsync()) { _peopleModelInstalled = _peopleModelStatusKnown = true; UpdateModelControls(); return; } }
         catch (Exception ex) { ShowPeopleScanError(ex); return; }
         _cts = new CancellationTokenSource();
         UpdateModelControls(); CancelButton.IsEnabled = true; Busy.Visibility = Visibility.Visible;
@@ -1540,6 +1591,7 @@ public partial class MainWindow : Window
         {
             StatusText.Text = LocalizationService.Get("PeopleModelDownload");
             await _modelManager.EnsureInstalledDetailedAsync(new Progress<ModelDownloadProgress>(UpdateModelDownloadProgress), _cts.Token);
+            _peopleModelInstalled = _peopleModelStatusKnown = true;
             PeopleModelProgress.IsIndeterminate = false; PeopleModelProgress.Value = 1; PeopleScanStageText.Text = LocalizationService.Get("PeopleModelInstalled"); PeopleScanProgressText.Text = LocalizationService.Get("PeopleModelInstalledDescription"); StatusText.Text = LocalizationService.Get("PeopleModelInstalled");
         }
         catch (OperationCanceledException) { PeopleScanStageText.Text = LocalizationService.Get("PeopleDownloadCanceled"); ResetPeopleOperationMessage(); StatusText.Text = LocalizationService.Get("PeopleDownloadCanceled"); }
@@ -1557,9 +1609,13 @@ public partial class MainWindow : Window
         var guard = TryAcquireMediaTask(LocalizationService.Get("PeopleScanRunningStage"));
         if (guard is null) return;
 
-        var images = (_peopleScanImages.Length > 0 ? _peopleScanImages : _mediaFindings.ToArray()).Where(x => File.Exists(x.Path)).ToArray();
+        ResetPeopleOperationMessage(); PeopleModelProgress.Visibility = Visibility.Visible; PeopleModelProgress.IsIndeterminate = true; PeopleScanStageText.Text = LocalizationService.Get("MediaScanPreparing");
+        StatusText.Text = LocalizationService.Get("MediaScanPreparing");
+        await Task.Yield();
+        var sourceImages = _peopleScanImages.Length > 0 ? _peopleScanImages : _mediaFindings.ToArray();
+        var images = await Task.Run(() => sourceImages.Where(x => File.Exists(x.Path)).ToArray());
         if (images.Length == 0) { guard.Dispose(); StatusText.Text = LocalizationService.Get("NoImagesForPeopleScan"); PeopleScanErrorText.Text = LocalizationService.Get("NoImagesForPeopleScan"); PeopleScanErrorText.Visibility = Visibility.Visible; return; }
-        try { if (!_modelManager.IsInstalled) { guard.Dispose(); ShowPeopleScanError(new ModelDownloadException(LocalizationService.Get("PeopleModelRequired"), "model_missing")); return; } }
+        try { if (!await _modelManager.IsInstalledAsync()) { guard.Dispose(); ShowPeopleScanError(new ModelDownloadException(LocalizationService.Get("PeopleModelRequired"), "model_missing")); return; } }
         catch (Exception ex) { guard.Dispose(); ShowPeopleScanError(ex); return; }
 
         _peopleScanImages = images;
@@ -1704,7 +1760,7 @@ public partial class MainWindow : Window
     {
         if (!_modelManager.HasModelFiles || _cts is not null) { UpdateModelControls(); return; }
         if (System.Windows.MessageBox.Show(LocalizationService.Get("PeopleModelRemovePrompt"), "NotBad Privacy Detector Agent", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
-        try { _modelManager.RemoveInstalledModel(); PeopleModelProgress.Visibility = Visibility.Collapsed; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanReady"); PeopleScanProgressText.Text = ""; PeopleScanErrorText.Visibility = Visibility.Collapsed; StatusText.Text = LocalizationService.Get("PeopleModelRemoved"); UpdateModelControls(); }
+        try { _modelManager.RemoveInstalledModel(); _peopleModelInstalled = false; _peopleModelStatusKnown = true; PeopleModelProgress.Visibility = Visibility.Collapsed; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanReady"); PeopleScanProgressText.Text = ""; PeopleScanErrorText.Visibility = Visibility.Collapsed; StatusText.Text = LocalizationService.Get("PeopleModelRemoved"); UpdateModelControls(); }
         catch (Exception ex) { ShowPeopleScanError(ex, false); }
     }
 
@@ -2227,7 +2283,14 @@ public partial class MainWindow : Window
         var guard = TryAcquireMediaTask(LocalizationService.Get("DocumentScanRunning"));
         if (guard is null) return;
 
-        var images = (_documentScanImages.Length > 0 ? _documentScanImages : _mediaFindings.ToArray()).Where(x => File.Exists(x.Path)).ToArray();
+        DocumentScanProgress.Visibility = Visibility.Visible;
+        DocumentScanProgress.IsIndeterminate = true;
+        DocumentScanStageText.Text = LocalizationService.Get("MediaScanPreparing");
+        DocumentScanProgressText.Text = LocalizationService.Get("MediaScanPreparingFiles");
+        StatusText.Text = LocalizationService.Get("MediaScanPreparing");
+        await Task.Yield();
+        var sourceImages = _documentScanImages.Length > 0 ? _documentScanImages : _mediaFindings.ToArray();
+        var images = await Task.Run(() => sourceImages.Where(x => File.Exists(x.Path)).ToArray());
         if (images.Length == 0)
         {
             guard.Dispose();
@@ -2375,16 +2438,31 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("ExifScanning"));
         if (guard is null) return;
 
-        var candidates = _findings.Where(x => !x.Ignored && File.Exists(x.Path)).ToArray();
+        ExifScanButton.IsEnabled = false;
+        ExifScanCancelButton.IsEnabled = true;
+        PeopleModelProgress.Visibility = Visibility.Visible;
+        PeopleModelProgress.IsIndeterminate = true;
+        PeopleScanStageText.Text = LocalizationService.Get("MediaScanPreparing");
+        PeopleScanProgressText.Text = LocalizationService.Get("MediaScanPreparingFiles");
+        StatusText.Text = LocalizationService.Get("MediaScanPreparing");
+        _exifScanCts = new CancellationTokenSource();
+        var token = _exifScanCts.Token;
+        await Task.Yield();
+        Finding[] candidates;
+        try { candidates = await Task.Run(() => _findings.Where(x => !x.Ignored && File.Exists(x.Path)).ToArray(), token); }
+        catch (OperationCanceledException) { guard.Dispose(); _exifScanCts.Dispose(); _exifScanCts = null; ExifScanButton.IsEnabled = true; ExifScanCancelButton.IsEnabled = false; return; }
         if (candidates.Length == 0)
         {
             guard.Dispose();
+            _exifScanCts.Dispose();
+            _exifScanCts = null;
+            ExifScanButton.IsEnabled = true;
+            ExifScanCancelButton.IsEnabled = false;
+            PeopleModelProgress.Visibility = Visibility.Collapsed;
             StatusText.Text = LocalizationService.Get("NoImagesForPeopleScan");
             return;
         }
 
-        _exifScanCts = new CancellationTokenSource();
-        var token = _exifScanCts.Token;
         ExifScanButton.IsEnabled = false;
         PeopleScanButton.IsEnabled = false;
         DocumentScanButton.IsEnabled = false;
@@ -2949,6 +3027,22 @@ public partial class MainWindow : Window
         var token = _similarCts.Token;
 
         var target = _selected;
+        if (SimilarityAnalysisResult.TryParse(target.MetadataJson, out var cached))
+        {
+            var byPath = _findings.ToDictionary(x => x.Path, StringComparer.OrdinalIgnoreCase);
+            var cachedMatches = cached!.Matches
+                .Where(x => byPath.ContainsKey(x.Path))
+                .Select(x => new SimilarityMatch { Finding = byPath[x.Path], Score = x.Score, Details = x.Details })
+                .ToList();
+            SimilarSectionBorder.Visibility = Visibility.Visible;
+            SimilarProgressContainer.Visibility = Visibility.Collapsed;
+            SimilarSectionTitle.Text = string.Format(LocalizationService.Get("SimilarFindingsTitle"), cachedMatches.Count);
+            SimilarProgressText.Text = string.Format(LocalizationService.Get("SimilarCached"), cached.CompletedAtUtc.ToLocalTime());
+            SimilarEmptyText.Visibility = cachedMatches.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            SimilarFindingsList.ItemsSource = cachedMatches;
+            guard.Dispose();
+            return;
+        }
         SimilarSectionBorder.Visibility = Visibility.Visible;
         SimilarProgressContainer.Visibility = Visibility.Visible;
         SimilarProgress.Value = 0;
@@ -2956,6 +3050,11 @@ public partial class MainWindow : Window
         SimilarEmptyText.Visibility = Visibility.Collapsed;
         SimilarFindingsList.ItemsSource = null;
         SimilarSectionTitle.Text = LocalizationService.Get("CalculatingSimilarity");
+        _similarPaused = false;
+        _similarPauseGate.Set();
+        SimilarPauseButton.IsEnabled = true;
+        SimilarResumeButton.IsEnabled = false;
+        SimilarCancelButton.IsEnabled = true;
 
         try
         {
@@ -2971,10 +3070,18 @@ public partial class MainWindow : Window
             {
                 if (isImage)
                 {
-                    return ImageSimilarity.FindSimilar(target, _findings, token, progress);
+                    return ImageSimilarity.FindSimilar(target, _findings, token, progress, _similarPauseGate);
                 }
-                return DocumentSimilarity.FindSimilar(target, _findings, token, progress);
+                return DocumentSimilarity.FindSimilar(target, _findings, token, progress, _similarPauseGate);
             }, token);
+
+            target.MetadataJson = SimilarityAnalysisResult.InjectIntoMetadata(target.MetadataJson, new SimilarityAnalysisResult
+            {
+                Kind = isImage ? "Image" : "Document",
+                CompletedAtUtc = DateTime.UtcNow,
+                Matches = matches.Select(x => new SavedSimilarityMatch(x.Finding.Path, x.Score, x.Details)).ToList()
+            });
+            SaveCurrentSnapshot();
 
             SimilarProgressContainer.Visibility = Visibility.Collapsed;
             SimilarSectionTitle.Text = string.Format(LocalizationService.Get("SimilarFindingsTitle"), matches.Count);
@@ -2997,6 +3104,8 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _similarPauseGate.Set();
+            _similarPaused = false;
             guard.Dispose();
             _similarCts?.Dispose();
             _similarCts = null;
@@ -3005,6 +3114,7 @@ public partial class MainWindow : Window
 
     void CloseSimilarSection_Click(object sender, RoutedEventArgs e)
     {
+        _similarPauseGate.Set();
         RequestCancellation(_similarCts);
         SimilarSectionBorder.Visibility = Visibility.Collapsed;
     }
@@ -3186,16 +3296,45 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { StatusText.Text = string.Format(LocalizationService.Get("DeleteFileFailed"), ex.Message); }
     }
-    void SaveCurrentSnapshot()
+    async void SaveCurrentSnapshot()
     {
         try
         {
             var savedAt = DateTime.UtcNow;
-            SnapshotStore.Save(_snapshotPath, savedAt, _findings, _auditContext);
+            var findings = _findings.ToArray();
+            await _snapshotSaveGate.WaitAsync();
+            try { await Task.Run(() => SnapshotStore.Save(_snapshotPath, savedAt, findings, _auditContext)); }
+            finally { _snapshotSaveGate.Release(); }
             if (PreviousAuditPanel.Visibility == Visibility.Visible)
-                ShowPreviousAuditSummary(new ScanSnapshot(savedAt, _findings.ToList(), _auditContext));
+                ShowPreviousAuditSummary(new ScanSnapshot(savedAt, findings.ToList(), _auditContext));
         }
         catch { }
+    }
+
+    void SimilarPause_Click(object sender, RoutedEventArgs e)
+    {
+        if (_similarCts is null || _similarPaused) return;
+        _similarPaused = true;
+        _similarPauseGate.Reset();
+        SimilarPauseButton.IsEnabled = false;
+        SimilarResumeButton.IsEnabled = true;
+        SimilarProgressText.Text = LocalizationService.Get("PeopleScanPaused");
+    }
+
+    void SimilarResume_Click(object sender, RoutedEventArgs e)
+    {
+        if (_similarCts is null || !_similarPaused) return;
+        _similarPaused = false;
+        _similarPauseGate.Set();
+        SimilarPauseButton.IsEnabled = true;
+        SimilarResumeButton.IsEnabled = false;
+        SimilarProgressText.Text = LocalizationService.Get("CalculatingSimilarity");
+    }
+
+    void SimilarCancel_Click(object sender, RoutedEventArgs e)
+    {
+        _similarPauseGate.Set();
+        RequestCancellation(_similarCts, showGlobalProgress: false);
     }
     void ApplyPersonalState()
     {

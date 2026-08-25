@@ -42,7 +42,8 @@ public static class DocumentSimilarity
         Finding queryFinding,
         IEnumerable<Finding> candidateFindings,
         CancellationToken token = default,
-        IProgress<(int current, int total)>? progress = null)
+        IProgress<(int current, int total)>? progress = null,
+        ManualResetEventSlim? pauseGate = null)
     {
         var results = new List<SimilarityMatch>();
         if (!File.Exists(queryFinding.Path)) return results;
@@ -63,6 +64,7 @@ public static class DocumentSimilarity
         var docTokens = new List<(Finding Finding, Dictionary<string, int> TermCounts, int TotalTokens)>();
         for (int i = 0; i < candidates.Length; i++)
         {
+            pauseGate?.Wait(token);
             token.ThrowIfCancellationRequested();
             var c = candidates[i];
             var text = TextExtractor.ExtractText(c.Path);
@@ -107,6 +109,7 @@ public static class DocumentSimilarity
 
         foreach (var doc in docTokens)
         {
+            pauseGate?.Wait(token);
             token.ThrowIfCancellationRequested();
             var docVector = BuildTfIdfVector(doc.TermCounts, doc.TotalTokens, docFreq, totalDocs);
             var docNorm = ComputeVectorNorm(docVector);
