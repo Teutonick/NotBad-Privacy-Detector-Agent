@@ -4,6 +4,8 @@ public sealed class GitHubUpdateCheckerTests
 {
     [Theory]
     [InlineData("v1.2.3", 1, 2, 3)]
+    [InlineData("NotBadPrivacyDetectorAgent-v1.2.3-win-x64", 1, 2, 3)]
+    [InlineData("release-1.2.4", 1, 2, 4)]
     [InlineData("1.2.3-beta+build.7", 1, 2, 3)]
     [InlineData(" 2.0 ", 2, 0, 0)]
     public void ParsesReleaseTagsWithoutPrereleaseSuffix(string value, int major, int minor, int build)

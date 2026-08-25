@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace PrivacyAudit;
 
@@ -43,7 +44,9 @@ public static class GitHubUpdateChecker
         version = new Version(0, 0, 0);
         if (string.IsNullOrWhiteSpace(value)) return false;
         var normalized = value.Trim();
-        if (normalized.StartsWith('v') || normalized.StartsWith('V')) normalized = normalized[1..];
+        var versionMatch = Regex.Match(normalized, @"(?<!\d)v?(\d+\.\d+(?:\.\d+)?(?:\.\d+)?)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (!versionMatch.Success) return false;
+        normalized = versionMatch.Groups[1].Value;
         var suffix = normalized.IndexOfAny(['-', '+']);
         if (suffix >= 0) normalized = normalized[..suffix];
         if (!Version.TryParse(normalized, out var parsed)) return false;

@@ -176,9 +176,9 @@
                 FontSize="10"
                 Padding="8,5"
                 Margin="0,6,0,0"
-                Background="#0F0A84FF"
-                Foreground="#69B7FF"
-                BorderBrush="#2E0A84FF"
+                Background="#08FFFFFF"
+                Foreground="#687386"
+                BorderBrush="#18FFFFFF"
                 BorderThickness="1"
                 ToolTip="{local:Loc CheckForUpdatesHelp}"/>
         <Button x:Name="btnCleanup"

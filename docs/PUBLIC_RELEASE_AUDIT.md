@@ -19,4 +19,4 @@ The public source tree uses a conventional `src/PrivacyAudit`, `tests`, `scripts
 
 ## Release gate
 
-Run `scripts\package-release.ps1`. It must complete `verify.ps1`, tests, self-contained single-file publish, startup/termination smoke-test, compact runtime/legal document collection, license collection, ZIP creation, and SHA-256 generation.
+Run `scripts\package-release.ps1`. It must complete `verify.ps1`, tests, self-contained single-file publish, startup/termination smoke-test, compact runtime/legal document collection, license collection, ZIP creation, SHA-256 generation, and a generated `publish-github-release-v<version>.txt` checklist. Publish the ZIP and SHA-256 sidecar under the canonical `v<version>` tag as a normal (not Draft/Pre-release) GitHub Release so the in-app manual update check can discover it.

@@ -13,3 +13,9 @@ The application project is `src\PrivacyAudit\PrivacyAudit.csproj`; `PrivacyAudit
 ```
 
 The only supported release artifact is `dist\NotBadPrivacyDetectorAgent.exe` produced after all checks pass.
+
+## GitHub Releases
+
+Run `scripts\package-release.ps1` after changing `<Version>` in `src\PrivacyAudit\PrivacyAudit.csproj` to a new `major.minor.patch` value. The script verifies the build, creates `artifacts\releases\NotBadPrivacyDetectorAgent-v<version>-win-x64.zip`, writes its `.sha256` sidecar, and produces `publish-github-release-v<version>.txt` with the exact upload steps.
+
+Create a normal, published GitHub Release at [the Releases page](https://github.com/Teutonick/NotBad-Privacy-Detector-Agent/releases/new) using the tag `v<version>` from the current `main` branch. Upload both the ZIP and its `.sha256` file. Do not mark the release as Draft or Pre-release: the application checks the public `releases/latest` endpoint, reads the `v<version>` tag, and opens the release page for the user to download manually. The application never downloads or installs the asset itself.

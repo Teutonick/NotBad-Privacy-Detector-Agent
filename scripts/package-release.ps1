@@ -7,7 +7,7 @@ $projectPath = Join-Path $workspace 'src\PrivacyAudit\PrivacyAudit.csproj'
 [xml]$project = Get-Content -LiteralPath $projectPath
 $version = [string]$project.Project.PropertyGroup.Version
 if ([string]::IsNullOrWhiteSpace($version)) { throw 'PrivacyAudit.csproj does not define Version.' }
-if ($version -notmatch '^[0-9A-Za-z][0-9A-Za-z._-]*$') { throw "Unsafe package version: $version" }
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Release version must be SemVer-like major.minor.patch (for example 1.0.2): $version" }
 
 & (Join-Path $PSScriptRoot 'verify.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'verify.ps1 failed; release ZIP was not created.' }
@@ -15,6 +15,7 @@ if ($LASTEXITCODE -ne 0) { throw 'verify.ps1 failed; release ZIP was not created
 $releaseRoot = Join-Path $workspace 'artifacts\releases'
 $stageRoot = Join-Path $workspace ('.tmp\release-stage-' + [Guid]::NewGuid().ToString('N'))
 $packageName = "NotBadPrivacyDetectorAgent-v$version-win-x64"
+$releaseTag = "v$version"
 $packageRoot = Join-Path $stageRoot $packageName
 $licenseRoot = Join-Path $packageRoot 'third-party-licenses'
 $zipPath = Join-Path $releaseRoot ($packageName + '.zip')
@@ -80,6 +81,28 @@ try {
     Set-Content -LiteralPath ($zipPath + '.sha256') -Value "$($hash.Hash)  $([IO.Path]::GetFileName($zipPath))" -Encoding ASCII
     Write-Host "RELEASE: $zipPath"
     Write-Host "SHA256: $($hash.Hash)"
+    $publishInstructions = Join-Path $releaseRoot ("publish-github-release-$releaseTag.txt")
+    @(
+        "NotBad Privacy Detector Agent — GitHub release $releaseTag",
+        '',
+        '1. Open https://github.com/Teutonick/NotBad-Privacy-Detector-Agent/releases/new',
+        "2. In 'Choose a tag', create the new tag '$releaseTag' from the current main branch.",
+        "3. Set the release title to 'NotBad Privacy Detector Agent $version'.",
+        "4. Upload these two files from this folder:",
+        "   - $([IO.Path]::GetFileName($zipPath))",
+        "   - $([IO.Path]::GetFileName($zipPath)).sha256",
+        '5. Publish the release. Do not leave it as Draft or Pre-release: the app checks GitHub releases/latest.',
+        '',
+        "Canonical update tag: $releaseTag",
+        "Release page: https://github.com/Teutonick/NotBad-Privacy-Detector-Agent/releases"
+    ) | Set-Content -LiteralPath $publishInstructions -Encoding UTF8
+    Write-Host "PUBLISH INSTRUCTIONS: $publishInstructions"
+    Write-Host ''
+    Write-Host 'GitHub publication:' -ForegroundColor Cyan
+    Write-Host "  Tag:    $releaseTag"
+    Write-Host "  Upload: $([IO.Path]::GetFileName($zipPath))"
+    Write-Host "  Also:   $([IO.Path]::GetFileName($zipPath)).sha256"
+    Write-Host '  Publish as a normal release (not Draft/Pre-release) so the update button can find it.'
 }
 finally {
     if (Test-Path -LiteralPath $stageRoot) {

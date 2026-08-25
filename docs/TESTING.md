@@ -18,6 +18,8 @@ Overview state coverage verifies that the primary-audit Stop button is hidden wh
 
 Triage Router coverage verifies scanner applicability, soft down-ranking of thumbnails without exclusion, ten-percent selection, the absolute cap, registry-driven future-scanner execution and local session round-tripping. Manual wizard checks cover preparation off the dispatcher, pause/resume/cancel persistence, unavailable-scanner isolation, stage snapshots, read-only controls during execution, dynamic report visibility and return navigation from the priority grid.
 
+Priority-report UI checks also cover the persistent partial-scope notice, independently dismissible whole-audit reminders in Findings/Media/Application History, reset of those reminders for a new audit, and shared 600-row pagination with disabled boundary buttons and page-one reset after filter/search changes.
+
 Update-check coverage is deliberately network-free: tests verify normalization of GitHub-style version tags and newer/equal/older comparisons. Manual release QA clicks the footer action for the up-to-date and unavailable-network states and confirms that no request occurs before the click, no file is downloaded, and the browser opens only after accepting the newer-version prompt. Starting a valid new audit must immediately remove the old priority-report tab/session; completing that audit must offer a newly routed plan for its own findings.
 
 Privacy Radar coverage verifies audit-context snapshot round-tripping, backward-compatible optional context, evidence-aware ranking from persisted deep-detector metadata, and safe audit-result reset that does not erase personal feedback or exclusions.
