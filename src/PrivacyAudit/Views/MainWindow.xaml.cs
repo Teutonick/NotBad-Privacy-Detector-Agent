@@ -960,10 +960,9 @@ public partial class MainWindow : Window
         {
             if (File.Exists(_snapshotPath)) SnapshotStore.Delete(_snapshotPath);
             _db.DeleteAuditResults();
-            _priorityAuditStore.Delete();
-            _priorityAuditSession = null;
-            TabPriorityReport.Visibility = Visibility.Collapsed;
         }
+
+        ResetPriorityAuditForNewAudit();
 
         _cts = new(); _findingsResearchHintDismissed = false; _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; _peopleScanImages = []; _documentScanImages = []; _peopleScanState.Reset(); _documentScanState.Reset(); DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
         _auditContext = new(preset, roots, _scanStart, _scanStart, TimeSpan.Zero);
@@ -995,6 +994,17 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) { StatusText.Text = LocalizationService.Get("ScanCanceled"); }
         catch (Exception ex) { System.Windows.MessageBox.Show(ex.Message, "NotBad Privacy Detector Agent", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error); StatusText.Text = LocalizationService.Get("ScanFailed"); }
         finally { guard.Dispose(); _cts.Dispose(); _cts = null; ScanButton.IsEnabled = true; CancelButton.IsEnabled = false; CancelButton.Visibility = Visibility.Collapsed; Busy.Visibility = Visibility.Collapsed; }
+    }
+
+    void ResetPriorityAuditForNewAudit()
+    {
+        _priorityAuditStore.Delete();
+        _priorityAuditSession = null;
+        _visiblePriorityFindings.Clear();
+        _priorityWizardDismissed = false;
+        TabPriorityReport.Visibility = Visibility.Collapsed;
+        PriorityAuditWizardPanel.Visibility = Visibility.Collapsed;
+        PrivacyRadarIntroPanel.Visibility = Visibility.Visible;
     }
 
     void RefreshApplicationHistorySummary()

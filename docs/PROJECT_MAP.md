@@ -91,6 +91,8 @@ Scanner errors are isolated. Cancellation returns a partial report. System cultu
 - **Findings risk clarity**: the compact `Privacy Risk` column is shown before the separate `Detect Risk` severity column; a dismissible yellow research hint appears after a primary audit until a deep research action completes or the user closes the hint.
 - **Fundamental Findings reset**: clearing filters restores the evidence-first `DetectionPriorityRank` order, so confirmed detector content remains above less-researched items after reset.
 - **Priority deep-check wizard**: after the primary audit, Overview offers a budgeted local pass over a diverse scope of up to 10%. The dynamic Priority Report appears only after completion and reuses the same findings, Details navigation and file context actions without exposing scanner-launch controls.
+- **Audit-bound priority report**: starting any valid new primary audit deletes the previous priority-session sidecar and immediately hides its report. A new Triage Router plan is created only from the completed new finding set, so reports cannot cross audit boundaries.
+- **Manual update check**: `Services/GitHubUpdateChecker.cs` reads GitHub's latest-release metadata only after the footer button is clicked, compares normalized assembly/release versions, and opens the release page only after a second confirmation. It never downloads or installs an update.
 
 # Selection, deletion and cancellation UX
 

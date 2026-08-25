@@ -169,6 +169,18 @@
             </Button.Template>
         </Button>
         </Grid>
+        <Button x:Name="btnCheckUpdates"
+                Content="{local:Loc CheckForUpdates}"
+                Click="BtnCheckUpdates_Click"
+                HorizontalContentAlignment="Center"
+                FontSize="10"
+                Padding="8,5"
+                Margin="0,6,0,0"
+                Background="#0F0A84FF"
+                Foreground="#69B7FF"
+                BorderBrush="#2E0A84FF"
+                BorderThickness="1"
+                ToolTip="{local:Loc CheckForUpdatesHelp}"/>
         <Button x:Name="btnCleanup"
                 Content="{local:Loc CleanupButton}"
                 Click="BtnCleanup_Click"
@@ -179,6 +191,7 @@
                 Background="#22A33A47"
                 Foreground="#D99AA3"
                 BorderBrush="#35D05A68"
-                BorderThickness="1"/>
+                BorderThickness="1"
+                ToolTip="{local:Loc CleanupButton}"/>
     </StackPanel>
 </UserControl>

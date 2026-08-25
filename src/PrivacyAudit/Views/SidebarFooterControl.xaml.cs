@@ -210,6 +210,41 @@ public partial class SidebarFooterControl : UserControl
         window.ShowCleanupModal();
     }
 
+    async void BtnCheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        if (!btnCheckUpdates.IsEnabled) return;
+        btnCheckUpdates.IsEnabled = false;
+        btnCheckUpdates.Content = LocalizationService.Get("CheckingForUpdates");
+        try
+        {
+            var result = await GitHubUpdateChecker.CheckAsync();
+            if (!result.IsUpdateAvailable)
+            {
+                System.Windows.MessageBox.Show(
+                    string.Format(LocalizationService.Get("UpdateIsCurrent"), result.CurrentVersion.ToString(3)),
+                    LocalizationService.Get("UpdateCheckTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var answer = System.Windows.MessageBox.Show(
+                string.Format(LocalizationService.Get("UpdateAvailable"), result.CurrentVersion.ToString(3), result.LatestTag),
+                LocalizationService.Get("UpdateCheckTitle"), MessageBoxButton.YesNo, MessageBoxImage.Information, MessageBoxResult.Yes);
+            if (answer == MessageBoxResult.Yes)
+                Process.Start(new ProcessStartInfo(result.ReleaseUrl) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                string.Format(LocalizationService.Get("UpdateCheckFailed"), ex.Message),
+                LocalizationService.Get("UpdateCheckTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            btnCheckUpdates.Content = LocalizationService.Get("CheckForUpdates");
+            btnCheckUpdates.IsEnabled = true;
+        }
+    }
+
     static MenuItem CreateMenuItem(string titleKey, string subKey, string icon)
     {
         var title = LocalizationService.Get(titleKey);

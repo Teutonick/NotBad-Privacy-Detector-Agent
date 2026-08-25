@@ -97,6 +97,8 @@ public sealed class TriageRouterTests
             Assert.NotNull(restored);
             Assert.Equal("audit", restored!.AuditFingerprint);
             Assert.Contains(PriorityAuditSession.RouteKey(findingId, "pii"), restored.CompletedRoutes);
+            store.Delete();
+            Assert.Null(store.Load());
         }
         finally { store.Delete(); }
     }

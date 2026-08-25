@@ -2,6 +2,8 @@
 
 [Русская версия](README.ru.md)
 
+> **Download the ready-to-run Windows build:** [GitHub Releases](https://github.com/Teutonick/NotBad-Privacy-Detector-Agent/releases)
+
 > **Find what you forgot — before someone else does.**
 
 NotBad Privacy Detector Agent is a portable, local-first privacy scanner for Windows. It turns forgotten files, personal data, secrets, application traces and revealing metadata into a clear map of what deserves your attention — without sending your digital life to the cloud.
