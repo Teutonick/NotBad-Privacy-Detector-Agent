@@ -34,4 +34,14 @@ public sealed class SnapshotTests
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }
+
+    [Fact]
+    public async Task Snapshot_LoadAsync_HonorsCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            SnapshotStore.LoadAsync(Path.Combine(Path.GetTempPath(), "missing-snapshot.json"), cancellationToken: cancellation.Token));
+    }
 }

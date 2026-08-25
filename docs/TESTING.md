@@ -12,7 +12,7 @@ It redirects temporary state into the workspace, restores dependencies, runs Rel
 
 Coverage includes scoring, classification, age and bidirectional media-resolution filters, original image-header dimensions, pagination windows and viewport-anchor offset restoration, localization fallback, exclusions, SQLite, scanner isolation, partial cancellation, independent Media people/document operation state and localized control text, filesystem discovery, WPF construction and packaged-process lifecycle. Tests never delete system data or require administrator rights.
 
-Snapshot and similarity coverage verifies that completed per-object similarity matches survive metadata serialization while unrelated detector metadata remains intact. Manual responsiveness checks use a large restored audit and confirm that snapshot enrichment, media candidate preparation and model integrity verification do not execute on the WPF dispatcher.
+Snapshot and similarity coverage verifies that completed per-object similarity matches survive metadata serialization while unrelated detector metadata remains intact. Snapshot tests also verify that asynchronous restore honors a pre-canceled token. Manual responsiveness checks use a large restored audit and confirm that snapshot enrichment, media candidate preparation and model integrity verification do not execute on the WPF dispatcher; the restore-cancel action must open the new-audit form immediately and preserve the old snapshot until a new audit starts.
 
 Privacy Radar coverage verifies audit-context snapshot round-tripping, backward-compatible optional context, evidence-aware ranking from persisted deep-detector metadata, and safe audit-result reset that does not erase personal feedback or exclusions.
 

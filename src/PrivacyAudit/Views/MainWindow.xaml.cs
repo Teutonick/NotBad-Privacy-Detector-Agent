@@ -53,6 +53,9 @@ public partial class MainWindow : Window
     readonly Queue<int> _loadedFindingBatches = new();
     bool _loadingFindingBatch;
     CancellationTokenSource? _pageLoadCts;
+    CancellationTokenSource? _restoreCts;
+    IDisposable? _restoreBusyGuard;
+    bool _restoreCanceled;
     int _firstLoadedPage;
     int _lastLoadedPage;
     bool _userScrollPending;
@@ -383,8 +386,14 @@ public partial class MainWindow : Window
     {
         if (!File.Exists(_snapshotPath)) { ShowNewAuditSettings(); return; }
 
-        using var busy = TryAcquireHeavyTask(LocalizationService.Get("SnapshotRestoring"));
+        var busy = TryAcquireHeavyTask(LocalizationService.Get("SnapshotRestoring"));
         if (busy is null) return;
+        _restoreBusyGuard = busy;
+        _restoreCts = new CancellationTokenSource();
+        _restoreCanceled = false;
+        var token = _restoreCts.Token;
+        CancelRestoreButton.Visibility = Visibility.Visible;
+        CancelRestoreButton.IsEnabled = true;
         SetRestoreReadOnly(true);
         Busy.Visibility = Visibility.Visible;
         StatusText.Text = LocalizationService.Get("SnapshotAutoRestoring");
@@ -392,14 +401,17 @@ public partial class MainWindow : Window
         {
             var progress = new Progress<string>(stage =>
             {
+                if (token.IsCancellationRequested) return;
                 StatusText.Text = stage;
                 SidebarFooterControl.SetGlobalBusy(true, stage);
             });
-            var snapshot = await SnapshotStore.LoadAsync(_snapshotPath, progress);
+            var snapshot = await SnapshotStore.LoadAsync(_snapshotPath, progress, token);
+            token.ThrowIfCancellationRequested();
             if (snapshot is null || snapshot.Findings.Count == 0) { ShowNewAuditSettings(); return; }
             StatusText.Text = string.Format(LocalizationService.Get("SnapshotIndexing"), snapshot.Findings.Count);
             SidebarFooterControl.SetGlobalBusy(true, StatusText.Text);
-            var prepared = await Task.Run(() => PrepareRestoredSnapshot(snapshot));
+            var prepared = await Task.Run(() => PrepareRestoredSnapshot(snapshot), token);
+            token.ThrowIfCancellationRequested();
             _findings.Clear();
             _findings.AddRange(prepared.Findings);
             _auditContext = snapshot.Context;
@@ -415,8 +427,32 @@ public partial class MainWindow : Window
             ShowPreviousAuditSummary(snapshot);
             StatusText.Text = string.Format(LocalizationService.Get("SnapshotLoaded"), snapshot.Findings.Count);
         }
-        catch (Exception ex) { ShowNewAuditSettings(); StatusText.Text = LocalizationService.Get("SnapshotUnavailable"); CrashLogger.LogException(ex, "Restore snapshot"); }
-        finally { Busy.Visibility = Visibility.Collapsed; SetRestoreReadOnly(false); }
+        catch (OperationCanceledException)
+        {
+            // Cancellation is an expected user action and must never reach the WPF dispatcher.
+        }
+        catch (Exception ex)
+        {
+            if (!_restoreCanceled)
+            {
+                ShowNewAuditSettings();
+                StatusText.Text = LocalizationService.Get("SnapshotUnavailable");
+                CrashLogger.LogException(ex, "Restore snapshot");
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_restoreBusyGuard, busy))
+            {
+                _restoreBusyGuard = null;
+                busy.Dispose();
+            }
+            Busy.Visibility = Visibility.Collapsed;
+            CancelRestoreButton.Visibility = Visibility.Collapsed;
+            SetRestoreReadOnly(false);
+            _restoreCts?.Dispose();
+            _restoreCts = null;
+        }
     }
 
     (Finding[] Findings, Finding[] MediaFindings) PrepareRestoredSnapshot(ScanSnapshot snapshot)
@@ -443,10 +479,41 @@ public partial class MainWindow : Window
     {
         foreach (var element in FindVisualChildren<FrameworkElement>(MainTabs))
         {
+            if (ReferenceEquals(element, CancelRestoreButton)) continue;
             if (element is System.Windows.Controls.Button or System.Windows.Controls.ComboBox or System.Windows.Controls.Slider or System.Windows.Controls.TextBox or System.Windows.Controls.ListBox or System.Windows.Controls.DataGrid)
                 element.IsHitTestVisible = !readOnly;
         }
+        CancelRestoreButton.IsHitTestVisible = true;
         if (readOnly) StatusText.Text = LocalizationService.Get("SnapshotReadOnly");
+    }
+
+    void CancelRestore_Click(object sender, RoutedEventArgs e)
+    {
+        if (_restoreCts is null || _restoreCts.IsCancellationRequested) return;
+        _restoreCanceled = true;
+        _restoreCts.Cancel();
+        _pageLoadCts?.Cancel();
+        _mediaFilterCts?.Cancel();
+        _findings.Clear();
+        _visibleFindings.Clear();
+        _mediaFindings.Clear();
+        _visibleMediaFindings.Clear();
+        _sortedFindings = [];
+        _sortedMediaFindings = [];
+        _auditContext = null;
+        _auditAvailableForApplicationHistory = false;
+        DashboardPanel.Children.Clear();
+        EmptyDashboard.Visibility = Visibility.Visible;
+        CancelRestoreButton.Visibility = Visibility.Collapsed;
+        Busy.Visibility = Visibility.Collapsed;
+        SetRestoreReadOnly(false);
+        SetGlobalScanControlsEnabled(true);
+        ScanButton.IsEnabled = true;
+        _restoreBusyGuard?.Dispose();
+        _restoreBusyGuard = null;
+        ShowNewAuditSettings();
+        RefreshApplicationHistorySummary();
+        StatusText.Text = LocalizationService.Get("SnapshotRestoreCanceled");
     }
 
     void ShowPreviousAuditSummary(ScanSnapshot snapshot)
@@ -576,7 +643,7 @@ public partial class MainWindow : Window
             return;
         }
         if (preset == ScanPreset.Full) roots = roots.Select(root => Path.GetPathRoot(root) ?? root).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        if (_newAuditSettingsVisible && _findings.Count > 0)
+        if (_newAuditSettingsVisible && File.Exists(_snapshotPath))
         {
             SnapshotStore.Delete(_snapshotPath);
             _db.DeleteAuditResults();
@@ -1121,19 +1188,18 @@ public partial class MainWindow : Window
         var candidates = _findings.Where(MatchesFilter).ToArray();
         var sortProperty = _sortProperty;
         var sortDescending = _sortDescending;
-        await Task.Yield();
-        var sorted = await Task.Run(() => FindingPagination.Sort(candidates, sortProperty, sortDescending).ToArray(), token);
-        token.ThrowIfCancellationRequested();
-        if (!Dispatcher.CheckAccess() || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
-        _sortedFindings = sorted;
-        var pageSize = _imageTileMode && IsImagesFilter ? FindingPagination.TilePageSize(FindingsTileZoom.Value) : FindingPagination.ListPageSize;
-        var page = FindingPagination.Slice(_sortedFindings, _findingsPage, pageSize);
-        _findingsPage = page.PageIndex;
-        _loadingFindingBatch = true;
-        FindingsPageStatus.Text = LocalizationService.Get("PageLoading");
         try
         {
             await Task.Yield();
+            var sorted = await Task.Run(() => FindingPagination.Sort(candidates, sortProperty, sortDescending).ToArray(), token);
+            token.ThrowIfCancellationRequested();
+            if (!Dispatcher.CheckAccess() || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+            _sortedFindings = sorted;
+            var pageSize = _imageTileMode && IsImagesFilter ? FindingPagination.TilePageSize(FindingsTileZoom.Value) : FindingPagination.ListPageSize;
+            var page = FindingPagination.Slice(_sortedFindings, _findingsPage, pageSize);
+            _findingsPage = page.PageIndex;
+            _loadingFindingBatch = true;
+            FindingsPageStatus.Text = LocalizationService.Get("PageLoading");
             token.ThrowIfCancellationRequested();
             await Dispatcher.InvokeAsync(() =>
             {
@@ -1150,8 +1216,11 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) { }
         finally
         {
-            if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false;
-            UpdateFindingsLoadButtons();
+            if (!Dispatcher.HasShutdownStarted && !Dispatcher.HasShutdownFinished)
+            {
+                if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false;
+                UpdateFindingsLoadButtons();
+            }
         }
     }
     void Findings_MouseWheel(object sender, MouseWheelEventArgs e)
@@ -3509,5 +3578,6 @@ public partial class MainWindow : Window
         _provenanceCts?.Cancel();
         _pageLoadCts?.Cancel();
         _mediaFilterCts?.Cancel();
+        _restoreCts?.Cancel();
     }
 }

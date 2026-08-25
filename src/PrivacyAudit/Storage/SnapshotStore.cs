@@ -46,18 +46,21 @@ public static class SnapshotStore
         File.Move(temporary, path, true);
     }
 
-    public static ScanSnapshot? Load(string path, IProgress<string>? progress = null)
+    public static ScanSnapshot? Load(string path, IProgress<string>? progress = null, CancellationToken cancellationToken = default)
     {
         if (!File.Exists(path)) return null;
         progress?.Report("Reading the saved audit…");
         var document = JsonSerializer.Deserialize<SnapshotDocument>(File.ReadAllText(path), Options);
+        cancellationToken.ThrowIfCancellationRequested();
         if (document is null) return null;
         progress?.Report("Restoring finding metadata…");
-        return new(document.SavedAtUtc, document.Findings.Select(FromSnapshot).ToList(), document.Context);
+        var findings = document.Findings.Select(FromSnapshot).ToList();
+        cancellationToken.ThrowIfCancellationRequested();
+        return new(document.SavedAtUtc, findings, document.Context);
     }
 
-    public static Task<ScanSnapshot?> LoadAsync(string path, IProgress<string>? progress = null) =>
-        Task.Run(() => Load(path, progress));
+    public static Task<ScanSnapshot?> LoadAsync(string path, IProgress<string>? progress = null, CancellationToken cancellationToken = default) =>
+        Task.Run(() => Load(path, progress, cancellationToken), cancellationToken);
 
     static SnapshotFinding ToSnapshot(Finding f) => new()
     {

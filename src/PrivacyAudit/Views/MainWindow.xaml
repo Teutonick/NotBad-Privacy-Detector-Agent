@@ -14,6 +14,7 @@
       <StackPanel Orientation="Horizontal">
         <Button x:Name="ScanButton" Style="{StaticResource PrimaryButton}" Click="Scan_Click" Content="{local:Loc StartScan}"/>
         <Button x:Name="CancelButton" Click="Cancel_Click" Content="{local:Loc StopScan}" IsEnabled="False"/>
+        <Button x:Name="CancelRestoreButton" Click="CancelRestore_Click" Content="{local:Loc CancelSnapshotRestore}" Visibility="Collapsed" ToolTip="{local:Loc CancelSnapshotRestoreHelp}"/>
         <Button x:Name="ReturnToPreviousAuditButton" Click="ReturnToPreviousAudit_Click" Content="{local:Loc BackToPreviousAudit}" Visibility="Collapsed" ToolTip="{local:Loc BackToPreviousAuditHelp}"/>
       </StackPanel>
     </StackPanel>
