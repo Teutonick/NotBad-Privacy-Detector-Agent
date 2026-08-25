@@ -17,10 +17,12 @@ public sealed class AuditDatabase
         CREATE TABLE IF NOT EXISTS findings(id TEXT PRIMARY KEY, scan_id TEXT, scanner_id TEXT, category TEXT, subcategory TEXT, path TEXT, display_name TEXT, size_bytes INTEGER, created_at TEXT, modified_at TEXT, last_access_at TEXT, exposure_score INTEGER, reasons TEXT, age_class TEXT, ignored INTEGER DEFAULT 0);
         CREATE TABLE IF NOT EXISTS exclusions(path TEXT PRIMARY KEY);
         CREATE TABLE IF NOT EXISTS ml_feedback(finding_id TEXT NOT NULL, path_key TEXT PRIMARY KEY, label INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, feature_schema_version INTEGER NOT NULL, feature_json TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS personal_feature_events(id INTEGER PRIMARY KEY AUTOINCREMENT, finding_id TEXT NOT NULL, path_key TEXT NOT NULL, event_type TEXT NOT NULL, created_at TEXT NOT NULL, feature_schema_version INTEGER NOT NULL, feature_json TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS file_provenance(finding_id TEXT PRIMARY KEY, path TEXT NOT NULL, file_size INTEGER NOT NULL, file_modified_at TEXT, analysis_version INTEGER NOT NULL, analyzed_at TEXT NOT NULL, result_json TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS provenance_evidence(provenance_id TEXT NOT NULL, evidence_type TEXT NOT NULL, description TEXT NOT NULL, weight INTEGER NOT NULL, source TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS ix_findings_scan ON findings(scan_id);
         CREATE INDEX IF NOT EXISTS ix_ml_feedback_schema ON ml_feedback(feature_schema_version);
+        CREATE INDEX IF NOT EXISTS ix_personal_feature_events_path ON personal_feature_events(path_key, created_at);
         """; cmd.ExecuteNonQuery();
     }
     public IReadOnlyList<string> GetExclusions() { var x = new List<string>(); using var c = new SqliteConnection(Cs); c.Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "SELECT path FROM exclusions"; using var r = cmd.ExecuteReader(); while (r.Read()) x.Add(r.GetString(0)); return x; }
@@ -33,7 +35,7 @@ public sealed class AuditDatabase
     public void SetPersonalFeedback(string itemId, string feedbackKey, PersonalAttentionFeatures features, bool? label)
     {
         using var c = new SqliteConnection(Cs); c.Open(); using var cmd = c.CreateCommand();
-        if (label is null) { cmd.CommandText = "DELETE FROM ml_feedback WHERE path_key=$path"; cmd.Parameters.AddWithValue("$path", feedbackKey); cmd.ExecuteNonQuery(); return; }
+        if (label is null) { cmd.CommandText = "DELETE FROM ml_feedback WHERE path_key=$path"; cmd.Parameters.AddWithValue("$path", feedbackKey); cmd.ExecuteNonQuery(); RecordPersonalFeatureEvent(itemId, feedbackKey, "FeedbackCleared", features); return; }
         features.Label = label.Value;
         var now = DateTime.UtcNow.ToString("O");
         cmd.CommandText = """
@@ -46,7 +48,49 @@ public sealed class AuditDatabase
         cmd.Parameters.AddWithValue("$schema", PersonalAttentionSchema.Version);
         cmd.Parameters.AddWithValue("$features", PersonalAttentionFeatureExtractor.Serialize(features));
         cmd.ExecuteNonQuery();
+        RecordPersonalFeatureEvent(itemId, feedbackKey, label.Value ? "FeedbackLiked" : "FeedbackDisliked", features);
         PrunePersonalFeedback(c);
+    }
+
+    public void RecordPersonalFeatureEvent(string itemId, string pathKey, string eventType, PersonalAttentionFeatures features)
+    {
+        using var c = new SqliteConnection(Cs); c.Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "INSERT INTO personal_feature_events(finding_id,path_key,event_type,created_at,feature_schema_version,feature_json) VALUES($id,$path,$type,$at,$schema,$json)";
+        cmd.Parameters.AddWithValue("$id", itemId); cmd.Parameters.AddWithValue("$path", pathKey); cmd.Parameters.AddWithValue("$type", eventType);
+        cmd.Parameters.AddWithValue("$at", DateTime.UtcNow.ToString("O")); cmd.Parameters.AddWithValue("$schema", PersonalAttentionSchema.Version);
+        cmd.Parameters.AddWithValue("$json", PersonalAttentionFeatureExtractor.Serialize(features)); cmd.ExecuteNonQuery();
+        PrunePersonalFeatureEvents(c);
+    }
+
+    public int RecordFeatureEvolution(IEnumerable<Finding> findings, string eventType)
+    {
+        var rated = GetPersonalFeedback(PersonalAttentionSchema.Version).ToDictionary(x => x.PathKey, StringComparer.OrdinalIgnoreCase);
+        using var c = new SqliteConnection(Cs); c.Open(); using var tx = c.BeginTransaction();
+        var recorded = 0;
+        foreach (var finding in findings)
+        {
+            var key = PersonalAttentionFeatureExtractor.PathKey(finding.Path);
+            if (!rated.TryGetValue(key, out var feedback)) continue;
+            var features = PersonalAttentionFeatureExtractor.Extract(finding, feedback.Label);
+            using var cmd = c.CreateCommand(); cmd.Transaction = tx;
+            cmd.CommandText = "INSERT INTO personal_feature_events(finding_id,path_key,event_type,created_at,feature_schema_version,feature_json) VALUES($id,$path,$type,$at,$schema,$json)";
+            cmd.Parameters.AddWithValue("$id", finding.Id.ToString()); cmd.Parameters.AddWithValue("$path", key); cmd.Parameters.AddWithValue("$type", eventType);
+            cmd.Parameters.AddWithValue("$at", DateTime.UtcNow.ToString("O")); cmd.Parameters.AddWithValue("$schema", PersonalAttentionSchema.Version);
+            cmd.Parameters.AddWithValue("$json", PersonalAttentionFeatureExtractor.Serialize(features)); cmd.ExecuteNonQuery();
+            recorded++;
+        }
+        using (var prune = c.CreateCommand()) { prune.Transaction = tx; prune.CommandText = "DELETE FROM personal_feature_events WHERE id IN (SELECT id FROM personal_feature_events ORDER BY id DESC LIMIT -1 OFFSET $keep)"; prune.Parameters.AddWithValue("$keep", PersonalAttentionSchema.MaxFeatureEvents); prune.ExecuteNonQuery(); }
+        tx.Commit();
+        return recorded;
+    }
+
+    public IReadOnlyList<PersonalFeatureEvent> GetPersonalFeatureEvents(string? pathKey = null)
+    {
+        var values = new List<PersonalFeatureEvent>(); using var c = new SqliteConnection(Cs); c.Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT finding_id,path_key,event_type,created_at,feature_schema_version,feature_json FROM personal_feature_events" + (pathKey is null ? "" : " WHERE path_key=$path") + " ORDER BY id";
+        if (pathKey is not null) cmd.Parameters.AddWithValue("$path", pathKey);
+        using var r = cmd.ExecuteReader(); while (r.Read()) values.Add(new(r.GetString(0), r.GetString(1), r.GetString(2), DateTime.Parse(r.GetString(3), null, System.Globalization.DateTimeStyles.RoundtripKind), r.GetInt32(4), r.GetString(5)));
+        return values;
     }
     public IReadOnlyList<PersonalFeedbackRecord> GetPersonalFeedback(int? featureSchemaVersion = null)
     {
@@ -57,6 +101,19 @@ public sealed class AuditDatabase
         return values;
     }
     public PersonalModelStats GetPersonalModelStats(int trainedSamples = 0) { var all = GetPersonalFeedback(PersonalAttentionSchema.Version); var positive = all.Count(x => x.Label); return new(all.Count, positive, all.Count - positive, trainedSamples); }
+    public void UpdatePersonalFeedbackFeatures(IReadOnlyDictionary<string, PersonalAttentionFeatures> featuresByPath)
+    {
+        if (featuresByPath.Count == 0) return;
+        using var c = new SqliteConnection(Cs); c.Open(); using var tx = c.BeginTransaction();
+        foreach (var item in featuresByPath)
+        {
+            using var cmd = c.CreateCommand(); cmd.Transaction = tx;
+            cmd.CommandText = "UPDATE ml_feedback SET feature_json=$json,feature_schema_version=$schema,updated_at=$at WHERE path_key=$path";
+            cmd.Parameters.AddWithValue("$json", PersonalAttentionFeatureExtractor.Serialize(item.Value)); cmd.Parameters.AddWithValue("$schema", PersonalAttentionSchema.Version);
+            cmd.Parameters.AddWithValue("$at", DateTime.UtcNow.ToString("O")); cmd.Parameters.AddWithValue("$path", item.Key); cmd.ExecuteNonQuery();
+        }
+        tx.Commit();
+    }
     void PrunePersonalFeedback(SqliteConnection c)
     {
         using var prune = c.CreateCommand();
@@ -64,7 +121,13 @@ public sealed class AuditDatabase
         prune.Parameters.AddWithValue("$keep", PersonalAttentionSchema.MaxFeedbackRows);
         prune.ExecuteNonQuery();
     }
-    public void DeletePersonalFeedback() { using var c = new SqliteConnection(Cs); c.Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM ml_feedback"; cmd.ExecuteNonQuery(); }
+    static void PrunePersonalFeatureEvents(SqliteConnection c)
+    {
+        using var prune = c.CreateCommand();
+        prune.CommandText = "DELETE FROM personal_feature_events WHERE id IN (SELECT id FROM personal_feature_events ORDER BY id DESC LIMIT -1 OFFSET $keep)";
+        prune.Parameters.AddWithValue("$keep", PersonalAttentionSchema.MaxFeatureEvents); prune.ExecuteNonQuery();
+    }
+    public void DeletePersonalFeedback() { using var c = new SqliteConnection(Cs); c.Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "DELETE FROM ml_feedback; DELETE FROM personal_feature_events"; cmd.ExecuteNonQuery(); }
     public FileProvenanceResult? GetProvenance(Finding finding)
     {
         using var c = new SqliteConnection(Cs); c.Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "SELECT result_json FROM file_provenance WHERE finding_id=$id AND path=$path";

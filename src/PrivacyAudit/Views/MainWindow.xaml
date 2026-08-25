@@ -168,6 +168,8 @@
           <DataGrid.Columns>
             <DataGridTemplateColumn Header="{local:Loc Preview}" Width="68"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Width="42" Height="36" Background="#18FFFFFF" CornerRadius="8" HorizontalAlignment="Center"><Grid><TextBlock Text="{Binding Category, Converter={StaticResource FileGlyphConverter}}" Foreground="#69B7FF" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/><local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="64" Width="38" Height="32" Stretch="Uniform"/></Grid></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
             <DataGridTextColumn x:Name="RiskColumn" Header="{local:Loc Risk}" SortMemberPath="RiskLevel" Binding="{Binding RiskLevel}" Width="90"/>
+            <DataGridTextColumn Header="{local:Loc ObjectivePrivacyRisk}" SortMemberPath="ObjectivePrivacyRisk" Binding="{Binding ObjectivePrivacyRisk}" Width="105"/>
+            <DataGridTextColumn Header="{local:Loc CombinedPriority}" SortMemberPath="CombinedPriority" Binding="{Binding CombinedPriority}" Width="105"/>
             <DataGridTextColumn Header="{local:Loc Type}" SortMemberPath="Category" Binding="{Binding Category}" Width="110"/>
             <DataGridTextColumn Header="{local:Loc Name}" SortMemberPath="DisplayName" Binding="{Binding DisplayName}" Width="190"/>
             <DataGridTemplateColumn Header="{local:Loc PersonalModelShort}" SortMemberPath="PersonalAttentionScore" Width="150">

@@ -93,8 +93,8 @@ Scanner errors are isolated. Cancellation returns a partial report. System cultu
 
 # Personal attention model
 
-- `src/PrivacyAudit/Core/PersonalAttentionModel.cs` extracts versioned, content-free feature rows from findings and already-parsed application-history metadata, trains the single ML.NET SDCA logistic-regression model, batch-scores both sources, and manages the local model artifacts.
-- `src/PrivacyAudit/Storage/AuditDatabase.cs` owns `ml_feedback`; labels are keyed by normalized file path and retain the finding id, timestamps, schema version, and feature snapshot.
+- `src/PrivacyAudit/Core/PersonalAttentionModel.cs` extracts versioned, content-free feature rows, trains the ML.NET SDCA model off the UI thread, records holdout/precision@20 metrics, and batch-scores findings and application history.
+- `src/PrivacyAudit/Storage/AuditDatabase.cs` owns `ml_feedback` and bounded `personal_feature_events`; labels keep current features while the event stream preserves how rated objects gain PII, secret, media and other deep-analysis evidence over time.
 - `src/PrivacyAudit/Views/MainWindow.xaml(.cs)` supplies 👍/👎/clear controls, personal-score sorting and recommendation filtering, background retraining/cancellation, and model/history reset controls.
 - The Details view opens a localized **How AI recommendations work** window. `docs/PERSONAL_MODEL_USER_DESCRIPTION.md` is its canonical copy; changes to features, learning policy, score semantics, privacy/storage, retraining, or audit influence must update both copies in the same change and are release-blocking otherwise.
 - The first normal launch opens a localized three-slide introduction. Its opt-out marker lives under the owned app-data directory and is removed by full application-data cleanup; smoke tests can suppress the modal.

@@ -7,7 +7,10 @@
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <TextBlock Text="{local:Loc PersonalModelInfoTitle}" FontSize="25" FontWeight="Bold" Foreground="#B996FF" Margin="0,0,0,14"/>
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <TextBlock Text="{local:Loc PersonalModelInfoText}" TextWrapping="Wrap" FontSize="15" LineHeight="23" Foreground="#D6DEEC"/>
+      <StackPanel>
+        <TextBlock Text="{local:Loc PersonalModelInfoText}" TextWrapping="Wrap" FontSize="15" LineHeight="23" Foreground="#D6DEEC"/>
+        <TextBlock Text="{local:Loc PersonalModelEvolutionText}" TextWrapping="Wrap" FontSize="15" LineHeight="23" Foreground="#D6DEEC" Margin="0,14,0,0"/>
+      </StackPanel>
     </ScrollViewer>
     <Button Grid.Row="2" Content="{local:Loc Close}" Click="Close_Click" HorizontalAlignment="Right" MinWidth="120" Padding="16,9" Margin="0,18,0,0" ToolTip="{local:Loc CloseTooltip}"/>
   </Grid>

@@ -14,10 +14,13 @@ public static class PersonalAttentionSchema
     public const int RetrainInterval = 10;
     public const double MinimumMinorityFraction = 0.20;
     public const int MaxFeedbackRows = StorageLimits.MaxPersonalFeedbackRows;
+    public const int MaxFeatureEvents = 250_000;
 }
 
 public sealed record PersonalFeedbackRecord(string FindingId, string PathKey, bool Label, DateTime CreatedAt,
     DateTime UpdatedAt, int FeatureSchemaVersion, string FeatureJson);
+public sealed record PersonalFeatureEvent(string FindingId, string PathKey, string EventType, DateTime CreatedAt,
+    int FeatureSchemaVersion, string FeatureJson);
 
 public sealed record PersonalModelStats(int Total, int Positive, int Negative, int TrainedSamples = 0)
 {
@@ -182,7 +185,11 @@ public sealed record PersonalModelMetadata(
     [property: JsonPropertyName("positive_samples")] int PositiveSamples,
     [property: JsonPropertyName("negative_samples")] int NegativeSamples,
     [property: JsonPropertyName("feature_schema_version")] int FeatureSchemaVersion,
-    [property: JsonPropertyName("trained_samples")] int TrainedSamples);
+    [property: JsonPropertyName("trained_samples")] int TrainedSamples,
+    [property: JsonPropertyName("validation_metrics")] PersonalModelMetrics? ValidationMetrics = null);
+
+public sealed record PersonalModelMetrics(int ValidationSamples, double Accuracy, double Precision, double Recall,
+    double F1, double RocAuc, double PrAuc, double PrecisionAt20, double BaselinePrecisionAt20, int AiLiftedUsefulIntoTop20);
 
 public sealed class PersonalAttentionModelService
 {
@@ -216,18 +223,49 @@ public sealed class PersonalAttentionModelService
         var positive = samples.Count(x => x.Label); var stats = new PersonalModelStats(samples.Count, positive, samples.Count - positive);
         if (!stats.CanTrain) throw new InvalidOperationException("Training sample requirements are not met.");
         token.ThrowIfCancellationRequested();
-        var trained = await Task.Run(() =>
+        var result = await Task.Run(() =>
         {
             var data = _ml.Data.LoadFromEnumerable(samples);
-            var categorical = _ml.Transforms.Categorical.OneHotEncoding("ExtensionEncoded", nameof(PersonalAttentionFeatures.Extension))
+            var pipeline = CreatePipeline();
+            PersonalModelMetrics? metrics = null;
+            if (samples.Count >= 25)
+            {
+                var split = _ml.Data.TrainTestSplit(data, testFraction: 0.20, seed: 1701);
+                var candidate = pipeline.Fit(split.TrainSet);
+                var scored = candidate.Transform(split.TestSet);
+                var binary = _ml.BinaryClassification.Evaluate(scored);
+                var rows = _ml.Data.CreateEnumerable<ValidationPrediction>(scored, reuseRowObject: false).ToArray();
+                var top = rows.OrderByDescending(x => x.Probability).Take(20).ToArray();
+                var baselineTop = rows.OrderByDescending(x => x.ExposureScore).Take(20).ToArray();
+                var precisionAt20 = top.Length == 0 ? 0 : top.Count(x => x.Label) / (double)top.Length;
+                var baselinePrecisionAt20 = baselineTop.Length == 0 ? 0 : baselineTop.Count(x => x.Label) / (double)baselineTop.Length;
+                metrics = new(rows.Length, binary.Accuracy, binary.PositivePrecision, binary.PositiveRecall, binary.F1Score,
+                    binary.AreaUnderRocCurve, binary.AreaUnderPrecisionRecallCurve, precisionAt20, baselinePrecisionAt20,
+                    Math.Max(0, top.Count(x => x.Label) - baselineTop.Count(x => x.Label)));
+            }
+            return (Model: pipeline.Fit(data), Metrics: metrics);
+        }, token);
+        token.ThrowIfCancellationRequested();
+        Directory.CreateDirectory(_directory);
+        var temporary = ModelPath + ".tmp";
+        _ml.Model.Save(result.Model, null, temporary);
+        File.Move(temporary, ModelPath, true);
+        var metadata = new PersonalModelMetadata("SdcaLogisticRegression", DateTime.UtcNow, positive, samples.Count - positive, PersonalAttentionSchema.Version, samples.Count, result.Metrics);
+        File.WriteAllText(MetadataPath, JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
+        _model = result.Model; Metadata = metadata; return metadata;
+    }
+
+    IEstimator<ITransformer> CreatePipeline()
+    {
+        var categorical = _ml.Transforms.Categorical.OneHotEncoding("ExtensionEncoded", nameof(PersonalAttentionFeatures.Extension))
                 .Append(_ml.Transforms.Categorical.OneHotEncoding("FileCategoryEncoded", nameof(PersonalAttentionFeatures.FileCategory)))
                 .Append(_ml.Transforms.Categorical.OneHotEncoding("DirectoryCategoryEncoded", nameof(PersonalAttentionFeatures.DirectoryCategory)))
                 .Append(_ml.Transforms.Categorical.OneHotEncoding("ScannerCategoryEncoded", nameof(PersonalAttentionFeatures.ScannerCategory)))
                 .Append(_ml.Transforms.Categorical.OneHotEncoding("ItemSourceEncoded", nameof(PersonalAttentionFeatures.ItemSource)))
                 .Append(_ml.Transforms.Categorical.OneHotEncoding("ApplicationCategoryEncoded", nameof(PersonalAttentionFeatures.ApplicationCategory)))
                 .Append(_ml.Transforms.Categorical.OneHotEncoding("HistorySourceKindEncoded", nameof(PersonalAttentionFeatures.HistorySourceKind)));
-            var columns = Numeric.Concat(Boolean).Concat(["ExtensionEncoded", "FileCategoryEncoded", "DirectoryCategoryEncoded", "ScannerCategoryEncoded", "ItemSourceEncoded", "ApplicationCategoryEncoded", "HistorySourceKindEncoded"]).ToArray();
-            var pipeline = categorical.Append(_ml.Transforms.Concatenate("Features", columns))
+        var columns = Numeric.Concat(Boolean).Concat(["ExtensionEncoded", "FileCategoryEncoded", "DirectoryCategoryEncoded", "ScannerCategoryEncoded", "ItemSourceEncoded", "ApplicationCategoryEncoded", "HistorySourceKindEncoded"]).ToArray();
+        return categorical.Append(_ml.Transforms.Concatenate("Features", columns))
                 .Append(_ml.Transforms.NormalizeMeanVariance("Features"))
                 .Append(_ml.BinaryClassification.Trainers.SdcaLogisticRegression(new Microsoft.ML.Trainers.SdcaLogisticRegressionBinaryTrainer.Options
                 {
@@ -237,16 +275,13 @@ public sealed class PersonalAttentionModelService
                     L2Regularization = 0.01f,
                     Shuffle = false
                 }));
-            return pipeline.Fit(data);
-        }, token);
-        token.ThrowIfCancellationRequested();
-        Directory.CreateDirectory(_directory);
-        var temporary = ModelPath + ".tmp";
-        _ml.Model.Save(trained, null, temporary);
-        File.Move(temporary, ModelPath, true);
-        var metadata = new PersonalModelMetadata("SdcaLogisticRegression", DateTime.UtcNow, positive, samples.Count - positive, PersonalAttentionSchema.Version, samples.Count);
-        File.WriteAllText(MetadataPath, JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
-        _model = trained; Metadata = metadata; return metadata;
+    }
+
+    sealed class ValidationPrediction
+    {
+        public bool Label { get; set; }
+        public float Probability { get; set; }
+        public float ExposureScore { get; set; }
     }
 
     public float? Predict(Finding finding)

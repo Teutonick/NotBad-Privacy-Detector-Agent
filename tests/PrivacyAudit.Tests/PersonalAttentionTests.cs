@@ -32,6 +32,25 @@ public sealed class PersonalAttentionTests
     }
 
     [Fact]
+    public void FeedbackAndDeepSignalsCreateFeatureEvolutionHistory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "privacy-audit-events-" + Guid.NewGuid()); Directory.CreateDirectory(root);
+        try
+        {
+            var db = new AuditDatabase(Path.Combine(root, "test.db"));
+            var finding = new Finding { Path = Path.Combine(root, "secret.env"), ScannerId = "test" };
+            db.SetPersonalFeedback(finding, true);
+            finding.MetadataJson = SecretDetectionResult.InjectIntoMetadata(finding.MetadataJson, new SecretDetectionResult { TotalMatches = 1 });
+
+            Assert.Equal(1, db.RecordFeatureEvolution([finding], "SecretsScanCompleted"));
+            var events = db.GetPersonalFeatureEvents(PersonalAttentionFeatureExtractor.PathKey(finding.Path));
+            Assert.Equal(["FeedbackLiked", "SecretsScanCompleted"], events.Select(x => x.EventType));
+            Assert.Equal(1, PersonalAttentionFeatureExtractor.Deserialize(events[^1].FeatureJson)!.SecretMatches);
+        }
+        finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public async Task SdcaModelTrainsSavesLoadsAndPredicts()
     {
         var root = Path.Combine(Path.GetTempPath(), "privacy-audit-model-" + Guid.NewGuid()); Directory.CreateDirectory(root);
@@ -68,6 +87,10 @@ public sealed class PersonalAttentionTests
             var service = new PersonalAttentionModelService(root);
             var result = await service.TrainAsync(samples, CancellationToken.None);
             Assert.Equal(26, result.TrainedSamples);
+            Assert.NotNull(result.ValidationMetrics);
+            Assert.True(result.ValidationMetrics!.ValidationSamples > 0);
+            Assert.InRange(result.ValidationMetrics.RocAuc, 0, 1);
+            Assert.InRange(result.ValidationMetrics.PrAuc, 0, 1);
         }
         finally { Directory.Delete(root, true); }
     }
@@ -78,6 +101,17 @@ public sealed class PersonalAttentionTests
         var low = new Finding { Path = "low.txt", PersonalAttentionScore = 10 };
         var high = new Finding { Path = "high.txt", PersonalAttentionScore = 90 };
         Assert.Same(high, FindingPagination.Sort([low, high], nameof(Finding.PersonalAttentionScore), true).First());
+    }
+
+    [Fact]
+    public void ObjectiveRiskAndPersonalAttentionRemainSeparateInCombinedPriority()
+    {
+        var finding = new Finding { ExposureScore = 50, PersonalAttentionScore = 100 };
+        Assert.Equal(50, PrivacyRadarRanking.ObjectiveRisk(finding));
+        Assert.Equal(60, PrivacyRadarRanking.Score(finding));
+        finding.PersonalAttentionScore = 0;
+        Assert.Equal(40, PrivacyRadarRanking.Score(finding));
+        Assert.Equal(50, PrivacyRadarRanking.ObjectiveRisk(finding));
     }
 
     [Fact]

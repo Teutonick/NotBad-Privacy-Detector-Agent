@@ -38,6 +38,8 @@ public sealed class Finding : System.ComponentModel.INotifyPropertyChanged
     public float? PersonalAttentionScore { get => _personalAttentionScore; set { if (_personalAttentionScore == value) return; _personalAttentionScore = value; OnChanged(); OnChanged(nameof(PersonalAttentionDisplay)); } }
     public string PersonalFeedbackDisplay => PersonalAttentionLabel switch { true => "👍", false => "👎", _ => "—" };
     public string PersonalAttentionDisplay => PersonalAttentionScore is float score ? $"{score:0}%" : "—";
+    public int ObjectivePrivacyRisk => PrivacyRadarRanking.ObjectiveRisk(this);
+    public int CombinedPriority => PrivacyRadarRanking.Score(this);
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     void OnChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
 }

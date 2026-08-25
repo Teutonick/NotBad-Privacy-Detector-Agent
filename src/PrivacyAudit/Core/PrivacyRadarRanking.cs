@@ -4,7 +4,7 @@ namespace PrivacyAudit.Core;
 
 public static class PrivacyRadarRanking
 {
-    public static int Score(Finding finding)
+    public static int ObjectiveRisk(Finding finding)
     {
         var score = finding.ExposureScore;
         if (PiiDetectionResult.TryParse(finding.MetadataJson, out var pii) && pii!.TotalMatches > 0) score += 18;
@@ -19,8 +19,24 @@ public static class PrivacyRadarRanking
             if (exif!.DisclosedFields.Count > 0) score += 6;
             if (exif.HasGeolocation) score += 16;
         }
-        if (finding.PersonalAttentionScore is float personal) score += (int)Math.Round(personal / 10f);
-        return score;
+        return Math.Clamp(score, 0, 100);
+    }
+
+    public static int Score(Finding finding)
+    {
+        var objective = ObjectiveRisk(finding);
+        if (finding.PersonalAttentionScore is not float personal) return objective;
+        var combined = (int)Math.Round((objective * 0.80) + (personal * 0.20));
+        return Math.Max(CriticalEvidenceFloor(finding), Math.Clamp(combined, 0, 100));
+    }
+
+    static int CriticalEvidenceFloor(Finding finding)
+    {
+        if (SecretDetectionResult.TryParse(finding.MetadataJson, out var secret) && secret!.TotalMatches > 0) return 90;
+        if (CredentialConfigResult.TryParse(finding.MetadataJson, out var config) && config!.IsCredentialConfig) return 85;
+        if (DocumentDetectionResult.TryParse(finding.MetadataJson, out var document) && document!.IsIdentityDocument) return 80;
+        if (ExifMetadataResult.TryParse(finding.MetadataJson, out var exif) && exif!.HasGeolocation) return 75;
+        return 0;
     }
 
     public static int ConfirmedSignals(Finding finding)

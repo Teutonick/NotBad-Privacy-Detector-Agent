@@ -82,6 +82,7 @@ public partial class MainWindow : Window
     readonly ManualResetEventSlim _similarPauseGate = new(true);
     bool _similarPaused;
     CancellationTokenSource? _personalTrainingCts;
+    CancellationTokenSource? _personalTrainingDebounceCts;
     CancellationTokenSource? _exifScanCts;
     CancellationTokenSource? _applicationHistoryCts;
     readonly SemaphoreSlim _snapshotSaveGate = new(1, 1);
@@ -805,7 +806,7 @@ public partial class MainWindow : Window
         RefreshApplicationHistoryFilter();
     }
 
-    async void ApplicationHistoryPersonalFeedback_Click(object sender, RoutedEventArgs e)
+    void ApplicationHistoryPersonalFeedback_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button { DataContext: ApplicationHistoryEntry entry } button) return;
         bool? label = button.Tag?.ToString() switch { "True" => true, "False" => false, _ => null };
@@ -814,9 +815,7 @@ public partial class MainWindow : Window
         _db.SetPersonalFeedback($"history:{entry.ApplicationKey}", key, PersonalAttentionFeatureExtractor.Extract(entry, related, label ?? false), label);
         entry.PersonalAttentionLabel = label;
         UpdatePersonalModelStats();
-        var stats = _db.GetPersonalModelStats(_personalModel.Metadata?.TrainedSamples ?? 0);
-        if (stats.CanTrain && (!_personalModel.IsReady || stats.Total - stats.TrainedSamples >= PersonalAttentionSchema.RetrainInterval))
-            await TrainPersonalModelAsync();
+        SchedulePersonalTraining();
         e.Handled = true;
     }
 
@@ -1125,6 +1124,7 @@ public partial class MainWindow : Window
         await Task.Yield();
         var sorted = await Task.Run(() => FindingPagination.Sort(candidates, sortProperty, sortDescending).ToArray(), token);
         token.ThrowIfCancellationRequested();
+        if (!Dispatcher.CheckAccess() || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
         _sortedFindings = sorted;
         var pageSize = _imageTileMode && IsImagesFilter ? FindingPagination.TilePageSize(FindingsTileZoom.Value) : FindingPagination.ListPageSize;
         var page = FindingPagination.Slice(_sortedFindings, _findingsPage, pageSize);
@@ -1639,6 +1639,7 @@ public partial class MainWindow : Window
                 var finding = _findings.FirstOrDefault(x => x.Path.Equals(result.Path, StringComparison.OrdinalIgnoreCase));
                 if (finding is not null) finding.MetadataJson = PeopleScanMetadata.InjectIntoMetadata(finding.MetadataJson, result);
             }
+            await RefreshPersonalScoresAfterDeepScanAsync(images, "PeopleScanCompleted");
             SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
             var people = results.Count(x => x.Status == PeopleScanStatus.Completed && x.PeopleDetected);
             var noPeople = results.Count(x => x.Status == PeopleScanStatus.Completed && !x.PeopleDetected);
@@ -1880,6 +1881,7 @@ public partial class MainWindow : Window
                 }
             }, token);
 
+            await RefreshPersonalScoresAfterDeepScanAsync(candidates, "PiiScanCompleted");
             SaveCurrentSnapshot();
             RebuildCategories();
             var piiItem = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == "PII");
@@ -1973,6 +1975,7 @@ public partial class MainWindow : Window
                 }
             }, token);
 
+            await RefreshPersonalScoresAfterDeepScanAsync(candidates, "SecretsScanCompleted");
             SaveCurrentSnapshot();
             RebuildCategories();
             var secItem = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == "Secrets");
@@ -2062,6 +2065,7 @@ public partial class MainWindow : Window
                 }
             }, token);
 
+            await RefreshPersonalScoresAfterDeepScanAsync(candidates, "ConfigsScanCompleted");
             SaveCurrentSnapshot();
             RebuildCategories();
             var cfgItem = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == "Configs");
@@ -2154,6 +2158,7 @@ public partial class MainWindow : Window
                 }
             }, token);
 
+            await RefreshPersonalScoresAfterDeepScanAsync(candidates, "IdentityScanCompleted");
             SaveCurrentSnapshot();
             RebuildCategories();
             var idItem = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == "Identity");
@@ -2246,6 +2251,7 @@ public partial class MainWindow : Window
                 }
             }, token);
 
+            await RefreshPersonalScoresAfterDeepScanAsync(candidates, "ArchiveScanCompleted");
             SaveCurrentSnapshot();
             RebuildCategories();
             var archivesItem = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == "Archives");
@@ -2359,6 +2365,7 @@ public partial class MainWindow : Window
                 }
             }, token);
 
+            await RefreshPersonalScoresAfterDeepScanAsync(images, "DocumentScanCompleted");
             SaveCurrentSnapshot();
             if (foundCount > 0)
             {
@@ -2510,6 +2517,7 @@ public partial class MainWindow : Window
                 }
             }, token);
 
+            await RefreshPersonalScoresAfterDeepScanAsync(candidates, "ExifScanCompleted");
             SaveCurrentSnapshot();
             if (metadataFound > 0)
             {
@@ -2911,7 +2919,7 @@ public partial class MainWindow : Window
             ? $"\n\n{LocalizationService.Get("PersonalModel")}:\n{personalScore:0}% — {LocalizationService.Get(personalScore >= 70 ? "LikelyInteresting" : personalScore <= 30 ? "LikelyNotInteresting" : "PersonalUncertain")}" +
               (PersonalAttentionFeatureExtractor.Explain(f) is { Count: > 0 } factors ? $"\n{LocalizationService.Get("Why")}:\n• {string.Join("\n• ", factors)}" : "")
             : $"\n\n{LocalizationService.Get("PersonalModelNotTrained")}";
-        var radarDetails = string.Format(LocalizationService.Get("PrivacyRadarDetails"), PrivacyRadarRanking.Score(f), PrivacyRadarRanking.ConfirmedSignals(f));
+        var radarDetails = string.Format(LocalizationService.Get("PrivacyRadarDetails"), PrivacyRadarRanking.ObjectiveRisk(f), f.PersonalAttentionScore is float attention ? $"{attention:0} / 100" : "—", PrivacyRadarRanking.Score(f), PrivacyRadarRanking.ConfirmedSignals(f));
         DetailsText.Text = $"{f.DisplayName}\n\nFull path:\n{f.Path}\n\nSize: {f.SizeDisplay}\nCreated: {f.CreatedAt}\nModified: {f.ModifiedAt}\nLast access: {f.LastAccessAt}\n\nExposure: {f.ExposureScore} / 100 ({f.RiskLevel})\n{radarDetails}\nReasons:\n• {string.Join("\n• ", f.ExposureReasons)}\n\nCategory: {f.Category}\nSubcategory: {f.Subcategory}\nAge: {f.AgeClass}\nScanner: {f.ScannerId}{personalDetails}{piiDetails}{secDetails}{docDetails}{peopleDetails}{exifDetails}{configDetails}{identityDetails}{archiveDetails}{applicationHistoryDetails}";
 
         // Media Preview on Details tab
@@ -3358,17 +3366,17 @@ public partial class MainWindow : Window
         var stats = _db.GetPersonalModelStats(_personalModel.Metadata?.TrainedSamples ?? 0);
         PersonalModelStatsText.Text = string.Format(LocalizationService.Get("PersonalModelStats"), stats.Total, stats.Positive, stats.Negative) +
             (stats.CanTrain ? (_personalModel.IsReady ? "" : $"\n{LocalizationService.Get("PersonalModelReadyToTrain")}") : $"\n{LocalizationService.Get("PersonalModelNotTrained")}");
+        if (_personalModel.Metadata?.ValidationMetrics is { } metrics)
+            PersonalModelStatsText.Text += "\n" + string.Format(LocalizationService.Get("PersonalModelMetrics"), metrics.ValidationSamples, metrics.Accuracy, metrics.Precision, metrics.Recall, metrics.RocAuc, metrics.PrAuc, metrics.PrecisionAt20, metrics.BaselinePrecisionAt20, metrics.AiLiftedUsefulIntoTop20);
         PersonalRetrainButton.IsEnabled = stats.CanTrain && _personalTrainingCts is null;
     }
 
-    async void PersonalFeedback_Click(object sender, RoutedEventArgs e)
+    void PersonalFeedback_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button { DataContext: Finding finding } button) return;
         bool? label = button.Tag?.ToString() switch { "True" => true, "False" => false, _ => null };
         _db.SetPersonalFeedback(finding, label); finding.PersonalAttentionLabel = label; UpdatePersonalModelStats();
-        var stats = _db.GetPersonalModelStats(_personalModel.Metadata?.TrainedSamples ?? 0);
-        if (stats.CanTrain && (!_personalModel.IsReady || stats.Total - stats.TrainedSamples >= PersonalAttentionSchema.RetrainInterval))
-            await TrainPersonalModelAsync();
+        SchedulePersonalTraining();
         e.Handled = true;
     }
 
@@ -3385,11 +3393,18 @@ public partial class MainWindow : Window
         if (_personalTrainingCts is not null) return;
         var records = _db.GetPersonalFeedback(PersonalAttentionSchema.Version);
         var current = PersonalAttentionFeatureExtractor.IndexFindingsByPath(_findings);
+        var refreshed = new Dictionary<string, PersonalAttentionFeatures>(StringComparer.OrdinalIgnoreCase);
         var samples = records.Select(record =>
         {
+            if (current.TryGetValue(record.PathKey, out var finding))
+            {
+                var currentFeatures = PersonalAttentionFeatureExtractor.Extract(finding, record.Label);
+                refreshed[record.PathKey] = currentFeatures;
+                return currentFeatures;
+            }
             var stored = PersonalAttentionFeatureExtractor.Deserialize(record.FeatureJson);
-            if (stored is not null) { stored.Label = record.Label; return stored; }
-            return current.TryGetValue(record.PathKey, out var finding) ? PersonalAttentionFeatureExtractor.Extract(finding, record.Label) : null;
+            if (stored is not null) stored.Label = record.Label;
+            return stored;
         }).Where(x => x is not null).Cast<PersonalAttentionFeatures>().ToArray();
         var positive = samples.Count(x => x.Label); var stats = new PersonalModelStats(samples.Length, positive, samples.Length - positive);
         if (!stats.CanTrain) { UpdatePersonalModelStats(); return; }
@@ -3397,6 +3412,7 @@ public partial class MainWindow : Window
         PersonalModelStatsText.Text = LocalizationService.Get("PersonalModelTraining");
         try
         {
+            await Task.Run(() => _db.UpdatePersonalFeedbackFeatures(refreshed), _personalTrainingCts.Token);
             await _personalModel.TrainAsync(samples, _personalTrainingCts.Token);
             var scoreSnapshot = _findings.ToArray();
             var scores = await _personalModel.PredictManyAsync(scoreSnapshot, _personalTrainingCts.Token);
@@ -3407,6 +3423,44 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) { StatusText.Text = LocalizationService.Get("PersonalTrainingCancelled"); }
         catch (Exception ex) { CrashLogger.LogException(ex, "PersonalAttentionTraining"); StatusText.Text = string.Format(LocalizationService.Get("PersonalTrainingFailed"), ex.Message); }
         finally { _personalTrainingCts.Dispose(); _personalTrainingCts = null; PersonalCancelButton.Visibility = Visibility.Collapsed; ClearCancellationProgress(); UpdatePersonalModelStats(); }
+    }
+
+    void SchedulePersonalTraining(bool featuresChanged = false)
+    {
+        var stats = _db.GetPersonalModelStats(_personalModel.Metadata?.TrainedSamples ?? 0);
+        if (!stats.CanTrain || (!featuresChanged && _personalModel.IsReady && stats.Total - stats.TrainedSamples < PersonalAttentionSchema.RetrainInterval)) return;
+        _personalTrainingDebounceCts?.Cancel();
+        _personalTrainingDebounceCts?.Dispose();
+        var source = new CancellationTokenSource();
+        _personalTrainingDebounceCts = source;
+        StatusText.Text = LocalizationService.Get("PersonalTrainingQueued");
+        _ = RunPersonalTrainingWhenIdleAsync(source);
+    }
+
+    async Task RunPersonalTrainingWhenIdleAsync(CancellationTokenSource source)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(45), source.Token);
+            while (_activeHeavyTaskName is not null || _activeMediaTaskCount > 0 || _cts is not null || _textScanCts is not null || _peopleScanCts is not null || _documentScanCts is not null || _exifScanCts is not null)
+                await Task.Delay(TimeSpan.FromSeconds(10), source.Token);
+            await TrainPersonalModelAsync();
+        }
+        catch (OperationCanceledException) { }
+        finally { if (ReferenceEquals(_personalTrainingDebounceCts, source)) { _personalTrainingDebounceCts = null; source.Dispose(); } }
+    }
+
+    async Task RefreshPersonalScoresAfterDeepScanAsync(IEnumerable<Finding> changedFindings, string eventType)
+    {
+        var changed = changedFindings.DistinctBy(x => x.Id).ToArray();
+        if (changed.Length == 0) return;
+        StatusText.Text = LocalizationService.Get("PersonalScoresRefreshing");
+        var scores = await _personalModel.PredictManyAsync(changed);
+        for (var i = 0; i < changed.Length; i++) changed[i].PersonalAttentionScore = scores[i];
+        var evolvedRatings = await Task.Run(() => _db.RecordFeatureEvolution(changed, eventType));
+        if (evolvedRatings > 0) SchedulePersonalTraining(featuresChanged: true);
+        RefreshFindingsPage();
+        UpdatePeoplePresentation();
     }
 
     void PersonalCancel_Click(object sender, RoutedEventArgs e) => RequestCancellation(_personalTrainingCts);
@@ -3450,6 +3504,7 @@ public partial class MainWindow : Window
         _similarCts?.Cancel();
         _exifScanCts?.Cancel();
         _applicationHistoryCts?.Cancel();
+        _personalTrainingDebounceCts?.Cancel();
         _personalTrainingCts?.Cancel();
         _provenanceCts?.Cancel();
         _pageLoadCts?.Cancel();

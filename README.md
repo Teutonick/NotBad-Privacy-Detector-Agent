@@ -16,7 +16,7 @@ NotBad Privacy Detector Agent brings those traces together, explains the risk an
 
 ## Highlights
 
-- **Privacy Radar that gets sharper over time.** The last audit opens automatically; every local deep check adds evidence and lifts confirmed, meaningful risks above broad candidates.
+- **Privacy Radar that gets sharper over time.** Objective scanner risk and personal attention stay independent, combine transparently for ranking, and every local deep check refreshes both without hiding confirmed threats.
 - **Digital archaeology in one place.** Discover personal data, credentials, forgotten application traces, sensitive archives, media metadata and duplicates across the PC.
 - **Risk you can understand.** Findings come with evidence and context, so a scary score is never the whole explanation.
 - **Discover where it came from.** Investigate a selected file's likely origin and connections to local software without turning the audit into guesswork.
