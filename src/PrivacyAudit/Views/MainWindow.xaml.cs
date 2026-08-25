@@ -106,6 +106,7 @@ public partial class MainWindow : Window
     string? _activeHeavyTaskName;
     int _activeMediaTaskCount;
     AuditSnapshotContext? _auditContext;
+    string? _auditIdentity;
     bool _newAuditSettingsVisible;
     bool _findingsResearchHintDismissed;
     bool _findingsPriorityPartialHintDismissed;
@@ -120,6 +121,8 @@ public partial class MainWindow : Window
     int _priorityWizardPreparationVersion;
     int _priorityAuditCheckpointCounter;
     int _priorityAuditCheckpointSavePending;
+    bool _restoreInteractionsLocked;
+    bool _priorityInteractionsLocked;
 
     sealed class ActionDisposable(Action action) : IDisposable
     {
@@ -176,6 +179,16 @@ public partial class MainWindow : Window
                 SidebarFooterControl.SetGlobalBusy(false);
             });
         });
+    }
+
+    static IEnumerable<T> FindLogicalChildren<T>(DependencyObject root) where T : DependencyObject
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is not DependencyObject dependency) continue;
+            if (dependency is T match) yield return match;
+            foreach (var nested in FindLogicalChildren<T>(dependency)) yield return nested;
+        }
     }
 
     IDisposable? TryAcquireMediaTask(string taskName)
@@ -436,6 +449,7 @@ public partial class MainWindow : Window
             _findings.Clear();
             _findings.AddRange(prepared.Findings);
             _auditContext = snapshot.Context;
+            _auditIdentity = AuditIdentity.Create(snapshot.Context, snapshot.SavedAtUtc);
             _auditAvailableForApplicationHistory = true;
             RefreshApplicationHistorySummary();
             _mediaFindings.Clear();
@@ -470,9 +484,10 @@ public partial class MainWindow : Window
             }
             Busy.Visibility = Visibility.Collapsed;
             CancelRestoreButton.Visibility = Visibility.Collapsed;
-            SetRestoreReadOnly(false);
             _restoreCts?.Dispose();
             _restoreCts = null;
+            SetRestoreReadOnly(false);
+            EnsureIdleOverviewInteractions();
         }
     }
 
@@ -498,14 +513,39 @@ public partial class MainWindow : Window
 
     void SetRestoreReadOnly(bool readOnly)
     {
-        foreach (var element in FindVisualChildren<FrameworkElement>(MainTabs))
-        {
-            if (ReferenceEquals(element, CancelRestoreButton)) continue;
-            if (element is System.Windows.Controls.Button or System.Windows.Controls.ComboBox or System.Windows.Controls.Slider or System.Windows.Controls.TextBox or System.Windows.Controls.ListBox or System.Windows.Controls.DataGrid)
-                element.IsHitTestVisible = !readOnly;
-        }
-        CancelRestoreButton.IsHitTestVisible = true;
+        _restoreInteractionsLocked = readOnly;
+        ApplyMainInteractionLocks();
         if (readOnly) StatusText.Text = LocalizationService.Get("SnapshotReadOnly");
+    }
+
+    void ApplyMainInteractionLocks()
+    {
+        var locked = _restoreInteractionsLocked || _priorityInteractionsLocked;
+        foreach (var element in FindLogicalChildren<FrameworkElement>(MainTabs))
+        {
+            if (element is not (System.Windows.Controls.Button or System.Windows.Controls.ComboBox or System.Windows.Controls.Slider or System.Windows.Controls.TextBox or System.Windows.Controls.ListBox or System.Windows.Controls.DataGrid)) continue;
+            var allowedWhileLocked = (_restoreInteractionsLocked && ReferenceEquals(element, CancelRestoreButton))
+                || (_priorityInteractionsLocked && (ReferenceEquals(element, PriorityWizardPauseButton) || ReferenceEquals(element, PriorityWizardCancelButton)));
+            element.IsHitTestVisible = !locked || allowedWhileLocked;
+        }
+        CancelRestoreButton.IsHitTestVisible = !_priorityInteractionsLocked;
+        PriorityWizardPauseButton.IsHitTestVisible = !_restoreInteractionsLocked;
+        PriorityWizardCancelButton.IsHitTestVisible = !_restoreInteractionsLocked;
+    }
+
+    void EnsureIdleOverviewInteractions()
+    {
+        if (_restoreCts is not null || _priorityAuditCts is not null || _cts is not null) return;
+        _restoreInteractionsLocked = false;
+        _priorityInteractionsLocked = false;
+        ApplyMainInteractionLocks();
+        StartOverButton.IsEnabled = true;
+        StartOverButton.IsHitTestVisible = true;
+        if (_priorityAuditSession is not null)
+        {
+            PriorityWizardStartButton.IsHitTestVisible = true;
+            UpdatePriorityWizardPresentation();
+        }
     }
 
     void CancelRestore_Click(object sender, RoutedEventArgs e)
@@ -522,6 +562,7 @@ public partial class MainWindow : Window
         _sortedFindings = [];
         _sortedMediaFindings = [];
         _auditContext = null;
+        _auditIdentity = null;
         _auditAvailableForApplicationHistory = false;
         DashboardPanel.Children.Clear();
         EmptyDashboard.Visibility = Visibility.Visible;
@@ -539,6 +580,7 @@ public partial class MainWindow : Window
 
     void ShowPreviousAuditSummary(ScanSnapshot snapshot)
     {
+        _auditIdentity ??= AuditIdentity.Create(snapshot.Context, snapshot.SavedAtUtc);
         _newAuditSettingsVisible = false;
         CancelButton.IsEnabled = false;
         CancelButton.Visibility = Visibility.Collapsed;
@@ -596,7 +638,7 @@ public partial class MainWindow : Window
         ShowPreviousAuditSummary(new ScanSnapshot(_auditContext?.CompletedAtUtc ?? DateTime.UtcNow, _findings.ToList(), _auditContext));
     }
 
-    string CurrentAuditFingerprint() => $"{_auditContext?.StartedAtUtc.Ticks ?? 0}:{_auditContext?.CompletedAtUtc.Ticks ?? 0}:{_findings.Count}";
+    string CurrentAuditFingerprint() => _auditIdentity ??= AuditIdentity.Create(_auditContext, _auditContext?.CompletedAtUtc ?? DateTime.UtcNow);
 
     static PriorityAuditSession CopyPrioritySession(PriorityAuditSession source) => new()
     {
@@ -645,24 +687,34 @@ public partial class MainWindow : Window
         if (_findings.Count == 0 || _priorityAuditCts is not null) return;
         var preparationVersion = ++_priorityWizardPreparationVersion;
         var fingerprint = CurrentAuditFingerprint();
-        if (_priorityAuditSession?.AuditFingerprint == fingerprint)
+        if (_priorityAuditSession is not null && AuditIdentity.Matches(_priorityAuditSession.AuditFingerprint, fingerprint, _auditContext))
         {
+            var needsMigration = !string.Equals(_priorityAuditSession.AuditFingerprint, fingerprint, StringComparison.Ordinal);
+            _priorityAuditSession.AuditFingerprint = fingerprint;
+            if (needsMigration) _priorityAuditStore.Save(_priorityAuditSession);
             UpdatePriorityWizardPresentation();
             if (_priorityAuditSession.HasReport)
             {
                 RefreshPriorityReportCategories();
                 RefreshPriorityReport();
             }
+            EnsureIdleOverviewInteractions();
             return;
         }
 
         var restored = _priorityAuditStore.Load();
-        if (restored is not null && restored.AuditFingerprint == fingerprint)
+        if (restored is not null && AuditIdentity.Matches(restored.AuditFingerprint, fingerprint, _auditContext))
         {
+            var needsMigration = !string.Equals(restored.AuditFingerprint, fingerprint, StringComparison.Ordinal);
             _priorityAuditSession = restored;
+            _priorityAuditSession.AuditFingerprint = fingerprint;
             if (_priorityAuditSession.Status == PriorityAuditStatus.Running)
             {
                 _priorityAuditSession.Status = PriorityAuditStatus.Paused;
+                _priorityAuditStore.Save(_priorityAuditSession);
+            }
+            else if (needsMigration)
+            {
                 _priorityAuditStore.Save(_priorityAuditSession);
             }
             UpdatePriorityWizardPresentation();
@@ -671,6 +723,7 @@ public partial class MainWindow : Window
                 RefreshPriorityReportCategories();
                 RefreshPriorityReport();
             }
+            EnsureIdleOverviewInteractions();
             return;
         }
 
@@ -699,6 +752,7 @@ public partial class MainWindow : Window
         _priorityAuditStore.Save(_priorityAuditSession);
         UpdatePriorityWizardPresentation();
         RefreshPriorityReportCategories();
+        EnsureIdleOverviewInteractions();
     }
 
     void ShowPriorityWizardPreparingState()
@@ -759,14 +813,8 @@ public partial class MainWindow : Window
 
     void SetPriorityAuditInteractions(bool enabled)
     {
-        foreach (var element in FindVisualChildren<FrameworkElement>(MainTabs))
-        {
-            if (ReferenceEquals(element, PriorityWizardPauseButton) || ReferenceEquals(element, PriorityWizardCancelButton)) continue;
-            if (element is System.Windows.Controls.Button or System.Windows.Controls.ComboBox or System.Windows.Controls.Slider or System.Windows.Controls.TextBox or System.Windows.Controls.ListBox or System.Windows.Controls.DataGrid)
-                element.IsHitTestVisible = enabled;
-        }
-        PriorityWizardPauseButton.IsHitTestVisible = true;
-        PriorityWizardCancelButton.IsHitTestVisible = true;
+        _priorityInteractionsLocked = !enabled;
+        ApplyMainInteractionLocks();
     }
 
     async void PriorityWizardStart_Click(object sender, RoutedEventArgs e)
@@ -1115,6 +1163,7 @@ public partial class MainWindow : Window
 
         _cts = new(); _findingsResearchHintDismissed = false; _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; _peopleScanImages = []; _documentScanImages = []; _peopleScanState.Reset(); _documentScanState.Reset(); DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
         _auditContext = new(preset, roots, _scanStart, _scanStart, TimeSpan.Zero);
+        _auditIdentity = null;
         ScanButton.IsEnabled = false; CancelButton.IsEnabled = true; CancelButton.Visibility = Visibility.Visible; Busy.Visibility = Visibility.Visible;
         try
         {
@@ -1132,6 +1181,7 @@ public partial class MainWindow : Window
             _db.Save(Guid.NewGuid(), _scanStart, _findings);
             var completedAt = DateTime.UtcNow;
             _auditContext = new(preset, roots, _scanStart, completedAt, completedAt - _scanStart);
+            _auditIdentity = AuditIdentity.Create(_auditContext, completedAt);
             await Task.Run(() => SnapshotStore.Save(_snapshotPath, completedAt, _findings, _auditContext));
             BuildDashboard(); RebuildCategories(); RefreshFindingsPage(true);
             _auditAvailableForApplicationHistory = true;
@@ -1150,6 +1200,7 @@ public partial class MainWindow : Window
         _priorityWizardPreparationVersion++;
         _priorityAuditStore.Delete();
         _priorityAuditSession = null;
+        _auditIdentity = null;
         _visiblePriorityFindings.Clear();
         _sortedPriorityFindings = [];
         _priorityReportPage = 0;
@@ -1570,7 +1621,13 @@ public partial class MainWindow : Window
         foreach (var g in _findings.Where(x => !x.Ignored).GroupBy(x => x.Category).OrderByDescending(g => g.Sum(x => x.SizeBytes)))
         {
             var b = new System.Windows.Controls.Button { Width = 250, Height = 116, Margin = new(0, 0, 12, 12), Padding = new(20), HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left, VerticalContentAlignment = System.Windows.VerticalAlignment.Center, Background = (System.Windows.Media.Brush)FindResource("Surface"), Content = $"{g.Key}\n\n{string.Format(LocalizationService.Get("DashboardCategorySummary"), g.Count(), Format.Bytes(g.Sum(x => x.SizeBytes)))}" };
-            b.Click += (_, _) => { var item = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => x.Tag?.ToString() == g.Key); if (item is not null) CategoryFilter.SelectedItem = item; MainTabs.SelectedIndex = 1; };
+            b.Click += (_, _) =>
+            {
+                var item = CategoryFilter.Items.OfType<ComboBoxItem>().FirstOrDefault(x => string.Equals(x.Tag?.ToString(), g.Key, StringComparison.OrdinalIgnoreCase));
+                if (item is not null) CategoryFilter.SelectedItem = item;
+                TabFindings.IsSelected = true;
+                RefreshFindingsPage(true);
+            };
             DashboardPanel.Children.Add(b);
         }
     }
@@ -4115,6 +4172,7 @@ public partial class MainWindow : Window
         _cleanupService.ClearCachesAndAuditResults();
         _priorityAuditStore.Delete();
         _priorityAuditSession = null;
+        _auditIdentity = null;
         _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear();
         _visiblePriorityFindings.Clear(); TabPriorityReport.Visibility = Visibility.Collapsed;
         UpdatePriorityPartialHints();

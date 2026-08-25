@@ -6,6 +6,20 @@ namespace PrivacyAudit.Tests;
 public sealed class SnapshotTests
 {
     [Fact]
+    public void AuditIdentity_RemainsStableWhenDeepScansChangeFindingCount()
+    {
+        var started = new DateTime(2026, 8, 25, 10, 0, 0, DateTimeKind.Utc);
+        var completed = started.AddMinutes(4);
+        var context = new AuditSnapshotContext(ScanPreset.Custom, [@"C:\Audit"], started, completed, completed - started);
+        var current = AuditIdentity.Create(context, completed);
+        var legacyBeforeDeepScan = $"{started.Ticks}:{completed.Ticks}:16560";
+
+        Assert.Equal(current, AuditIdentity.Create(context, completed.AddDays(1)));
+        Assert.True(AuditIdentity.Matches(legacyBeforeDeepScan, current, context));
+        Assert.False(AuditIdentity.Matches($"{started.Ticks}:{completed.AddSeconds(1).Ticks}:16560", current, context));
+    }
+
+    [Fact]
     public void Snapshot_RoundTripsFindingsAndTimestamp()
     {
         var directory = Path.Combine(Path.GetTempPath(), "privacy-audit-snapshot-tests", Guid.NewGuid().ToString("N"));

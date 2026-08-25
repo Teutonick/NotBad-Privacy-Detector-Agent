@@ -124,6 +124,29 @@ public sealed class TriageRouterTests
         finally { store.Delete(); }
     }
 
+    [Fact]
+    public void PrioritySessionStore_RecoversCompletedReportFromBackup()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"priority-session-{Guid.NewGuid():N}.json");
+        var store = new PriorityAuditSessionStore(path);
+        try
+        {
+            var completed = new PriorityAuditSession
+            {
+                AuditFingerprint = "audit-v2",
+                Status = PriorityAuditStatus.Completed,
+                Routes = [new(Guid.NewGuid(), "pii", 70, DeepScannerCost.Moderate, "docs", ["text"])]
+            };
+            store.Save(completed);
+            store.Save(new PriorityAuditSession { AuditFingerprint = "audit-v2", Status = PriorityAuditStatus.Ready });
+
+            Assert.True(store.Load()!.HasReport);
+            File.WriteAllText(path, "broken json");
+            Assert.True(store.Load()!.HasReport);
+        }
+        finally { store.Delete(); }
+    }
+
     sealed class FakeDeepScanner : IDeepAuditScanner
     {
         public string Id => "future-scanner";
