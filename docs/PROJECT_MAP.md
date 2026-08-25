@@ -83,6 +83,7 @@ Scanner errors are isolated. Cancellation returns a partial report. System cultu
 - **Accurate Detection Risk**: Jump List containers are technical exposure artifacts, not dangerous user files, and never receive a High/Critical finding. Risk is assigned to referenced objects from existing audit evidence; an unmatched historical path is promoted only for explicit sensitive-name/extension or network-path evidence.
 - **Reorganized Findings Toolbar**: Upper row houses category and risk dropdowns, deep scanning triggers (PII, Secrets, Configs, Identity, Archives), stop button, and legend toggle; lower row holds discrete size/age sliders, screen exposure toggle, personal ML recommendation toggle, vertically-centered search box, and the reset button.
 - **Detection-first Findings order**: The default grid order puts confirmed detector evidence ahead of scanned-clear and `Unknown` findings, using evidence volume, category breadth and then the compact Privacy Risk average. Scanner completion state is persisted in finding metadata so `Unknown` remains distinct from a completed scan with no confirmed detections.
+- **Findings risk clarity**: the compact `Privacy Risk` column is shown before the separate `Detect Risk` severity column; a dismissible yellow research hint appears after a primary audit until a deep research action completes or the user closes the hint.
 
 # Selection, deletion and cancellation UX
 

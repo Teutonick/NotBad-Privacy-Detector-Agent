@@ -76,7 +76,7 @@ public static class LocalizationService
         ["FindingsTitle"] = "Findings", ["FindingsDescription"] = "Every result is explained: where it was found, why it matters and how visible it may be.",
         ["AllRisks"] = "Detection risk", ["Critical"] = "Critical", ["High"] = "High", ["Medium"] = "Medium", ["Low"] = "Low", ["AllCategories"] = "All categories", ["ScreenExposure"] = "Visible during screen sharing", ["ScreenExposureHelp"] = "Shows files and traces likely to appear in Recent items, Explorer suggestions or during screen sharing.", ["JumpListsHelp"] = "Jump Lists are Windows histories of recently opened files attached to taskbar apps.", ["FindingsHelp"] = "Tip: Jump Lists are Windows recent-file histories. “Visible during screen sharing” filters traces that may appear in Explorer, Recent items or app menus.",
         ["ListView"] = "List", ["TileView"] = "Tiles", ["PreviousPage"] = "← Previous", ["NextPage"] = "Next →", ["LoadPreviousBatch"] = "↑ Load earlier", ["LoadNextBatch"] = "Load more ↓", ["PageStatus"] = "Page {0} / {1} · {2:N0} items · {3} per page", ["PageLoading"] = "Preparing this page…", ["TileSize"] = "Tile size",
-        ["Preview"] = "PREVIEW", ["Risk"] = "RISK", ["Exposure"] = "EXPOSURE", ["Type"] = "TYPE", ["Name"] = "NAME", ["Path"] = "PATH", ["Size"] = "SIZE", ["Age"] = "AGE", ["Modified"] = "MODIFIED",
+        ["Preview"] = "PREVIEW", ["Risk"] = "RISK", ["DetectRisk"] = "DETECT RISK", ["Exposure"] = "EXPOSURE", ["Type"] = "TYPE", ["Name"] = "NAME", ["Path"] = "PATH", ["Size"] = "SIZE", ["Age"] = "AGE", ["Modified"] = "MODIFIED",
         ["SearchPii"] = "Find personal data", ["SearchSecrets"] = "Find forgotten secrets", ["PiiFilter"] = "Personal data (PII)", ["SecretsFilter"] = "Forgotten secrets",
         ["PiiScanning"] = "Analyzing text and documents for personal data…", ["PiiComplete"] = "Personal data scan complete: {0:N0} files with PII found.",
         ["PiiDetails"] = "Personal Data (PII): {0:N0} matches\nCategories: {1}\nSamples:\n• {2}",
@@ -214,6 +214,7 @@ public static class LocalizationService
         ["RemovePeopleModelHelp"] = "Delete the downloaded YuNet neural network model from disk to save space.",
         ["MediaPageDescription"] = "Review found images and run targeted people, document and metadata searches.",
         ["DetectionUnknown"] = "Unknown", ["DetectionNoFindings"] = "No confirmed detections",
+        ["FindingsResearchHint"] = "To assess risks using personal data, secrets, passwords, configs and digital traces, run the corresponding research actions below. The ranking updates after each additional investigation.", ["FindingsResearchHintClose"] = "Close this research hint",
         ["OpenFileHelp"] = "Open this file with the default Windows application."
     };
 
@@ -242,7 +243,7 @@ public static class LocalizationService
         ["FindingsTitle"] = "Находки", ["FindingsDescription"] = "Объясняем каждый результат: где найден, почему важен и насколько может быть заметен посторонним.", ["DashboardCategorySummary"] = "{0:N0} объектов   ·   {1}",
         ["AllRisks"] = "Риск обнаружения", ["Critical"] = "Критический", ["High"] = "Высокий", ["Medium"] = "Средний", ["Low"] = "Низкий", ["AllCategories"] = "Все категории", ["ScreenExposure"] = "Заметное при демонстрации", ["ScreenExposureHelp"] = "Показывает файлы и следы, которые могут случайно мелькнуть в недавних объектах Windows, поиске Explorer или при показе экрана.", ["JumpListsHelp"] = "Jump Lists — это история недавно открытых файлов в Windows, прикреплённая к значкам программ на панели задач.", ["FindingsHelp"] = "Подсказка: Jump Lists — история недавних файлов Windows. «Заметное при демонстрации» помогает найти следы, которые могут увидеть зрители при показе экрана.",
         ["ListView"] = "Список", ["TileView"] = "Плитки", ["PreviousPage"] = "← Назад", ["NextPage"] = "Далее →", ["LoadPreviousBatch"] = "↑ Догрузить выше", ["LoadNextBatch"] = "Догрузить далее ↓", ["PageStatus"] = "Страница {0} / {1} · {2:N0} объектов · по {3}", ["PageLoading"] = "Подготавливаем страницу…", ["TileSize"] = "Размер плиток",
-        ["Preview"] = "ПРЕВЬЮ", ["Risk"] = "РИСК", ["Exposure"] = "EXPOSURE", ["Type"] = "ТИП", ["Name"] = "ИМЯ", ["Path"] = "ПУТЬ", ["Size"] = "РАЗМЕР", ["Age"] = "ВОЗРАСТ", ["Modified"] = "ИЗМЕНЁН",
+        ["Preview"] = "ПРЕВЬЮ", ["Risk"] = "РИСК", ["DetectRisk"] = "РИСК ОБНАРУЖЕНИЯ", ["Exposure"] = "EXPOSURE", ["Type"] = "ТИП", ["Name"] = "ИМЯ", ["Path"] = "ПУТЬ", ["Size"] = "РАЗМЕР", ["Age"] = "ВОЗРАСТ", ["Modified"] = "ИЗМЕНЁН",
         ["SearchPii"] = "Найти ПДн", ["SearchSecrets"] = "Найти забытые секреты", ["PiiFilter"] = "Персональные данные (ПДн)", ["SecretsFilter"] = "Забытые секреты",
         ["PiiScanning"] = "Ищем персональные данные в текстах и документах…", ["PiiComplete"] = "Поиск ПДн завершён: найдено файлов с ПДн — {0:N0}.",
         ["PiiDetails"] = "Персональные данные (ПДн): найдено {0:N0}\nКатегории: {1}\nПримеры:\n• {2}",
@@ -380,6 +381,7 @@ public static class LocalizationService
         ["RemovePeopleModelHelp"] = "Удаляет скачанную модель нейросети YuNet с диска для освобождения места.",
         ["MediaPageDescription"] = "Просматривай найденные изображения и запускай точечный поиск людей, документов и метаданных.",
         ["DetectionUnknown"] = "Не проверено", ["DetectionNoFindings"] = "Подтверждённых детектов нет",
+        ["FindingsResearchHint"] = "Чтобы оценить риски с учётом ПДн, секретов, паролей, конфигураций и цифровых следов, запусти соответствующие исследования ниже. Рейтинг перестроится после каждого дополнительного исследования.", ["FindingsResearchHintClose"] = "Закрыть подсказку об исследовании",
         ["OpenFileHelp"] = "Открыть этот файл в стандартной программе Windows."
     };
 

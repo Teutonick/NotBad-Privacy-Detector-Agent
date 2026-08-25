@@ -101,6 +101,7 @@ public partial class MainWindow : Window
     int _activeMediaTaskCount;
     AuditSnapshotContext? _auditContext;
     bool _newAuditSettingsVisible;
+    bool _findingsResearchHintDismissed;
     bool _peopleModelInstalled;
     bool _peopleModelStatusKnown;
 
@@ -412,6 +413,7 @@ public partial class MainWindow : Window
             SidebarFooterControl.SetGlobalBusy(true, StatusText.Text);
             var prepared = await Task.Run(() => PrepareRestoredSnapshot(snapshot), token);
             token.ThrowIfCancellationRequested();
+            _findingsResearchHintDismissed = false;
             _findings.Clear();
             _findings.AddRange(prepared.Findings);
             _auditContext = snapshot.Context;
@@ -649,7 +651,7 @@ public partial class MainWindow : Window
             _db.DeleteAuditResults();
         }
 
-        _cts = new(); _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; _peopleScanImages = []; _documentScanImages = []; _peopleScanState.Reset(); _documentScanState.Reset(); DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
+        _cts = new(); _findingsResearchHintDismissed = false; _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; _peopleScanImages = []; _documentScanImages = []; _peopleScanState.Reset(); _documentScanState.Reset(); DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
         _auditContext = new(preset, roots, _scanStart, _scanStart, TimeSpan.Zero);
         ScanButton.IsEnabled = false; CancelButton.IsEnabled = true; Busy.Visibility = Visibility.Visible;
         try
@@ -1174,8 +1176,32 @@ public partial class MainWindow : Window
             MediaResolutionLabel.Text = LocalizationService.Get(FindingFilter.GetResolutionKey((int)MediaResolutionSlider.Value));
         UpdatePeoplePresentation();
     }
+
+    bool HasDeepResearchForCurrentAudit() => _findings.Any(finding =>
+    {
+        var summary = DetectionEvidenceCalculator.Summarize(finding.MetadataJson);
+        return summary.HasCompletedScan || summary.HasConfirmedDetections;
+    });
+
+    void UpdateFindingsResearchHint()
+    {
+        if (FindingsResearchHintPanel is null) return;
+        FindingsResearchHintPanel.Visibility = _findings.Count > 0
+            && !_findingsResearchHintDismissed
+            && !HasDeepResearchForCurrentAudit()
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    void FindingsResearchHintClose_Click(object sender, RoutedEventArgs e)
+    {
+        _findingsResearchHintDismissed = true;
+        FindingsResearchHintPanel.Visibility = Visibility.Collapsed;
+    }
+
     async void RefreshFindingsPage(bool resetPage = false)
     {
+        UpdateFindingsResearchHint();
         if (!IsInitialized || FindingsPageStatus is null) return;
         FindingsLoadPreviousPanel.Visibility = Visibility.Collapsed;
         FindingsLoadNextPanel.Visibility = Visibility.Collapsed;

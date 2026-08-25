@@ -44,7 +44,7 @@
 
 <TabItem x:Name="TabFindings" Header="{local:Loc NavFindings}">
   <Grid>
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     
     <!-- Tab Header with Title and Prominent Legend Button -->
     <DockPanel Margin="0,0,0,16">
@@ -160,7 +160,14 @@
       <TextBlock x:Name="TextScanStatusText" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="2,4,2,0" FontSize="11" Text="{local:Loc FindingsHelp}"/>
       <ProgressBar x:Name="TextScanProgress" Height="6" Minimum="0" Maximum="1" Visibility="Collapsed" HorizontalAlignment="Stretch" Margin="2,6,2,0"/>
     </StackPanel></Border>
-    <Border Grid.Row="2" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="18" Padding="8">
+    <Border x:Name="FindingsResearchHintPanel" Grid.Row="2" Background="#26FFB340" BorderBrush="#FFB340" BorderThickness="1" CornerRadius="10" Padding="12,8" Margin="0,0,0,12" Visibility="Collapsed">
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="{local:Loc FindingsResearchHint}" Foreground="#FFD36A" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0"/>
+        <Button Grid.Column="1" Click="FindingsResearchHintClose_Click" Content="✕" Style="{StaticResource LinkButton}" Foreground="#FFD36A" Padding="5,0" VerticalAlignment="Center" ToolTip="{local:Loc FindingsResearchHintClose}"/>
+      </Grid>
+    </Border>
+    <Border Grid.Row="3" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="18" Padding="8">
       <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <Border x:Name="FindingsLoadPreviousPanel" Grid.Row="0" Panel.ZIndex="5" VerticalAlignment="Top" Background="#F0162233" BorderBrush="#5A69B7FF" BorderThickness="1" CornerRadius="10" Padding="8,5" Margin="12,8,12,0" Visibility="Collapsed">
           <Button x:Name="FindingsLoadPreviousButton" Click="FindingsLoadPrevious_Click" Content="{local:Loc LoadPreviousBatch}" Padding="14,7" HorizontalAlignment="Center" Background="#1F69B7FF" ToolTip="{local:Loc LoadPreviousBatchHelp}"/>
@@ -168,7 +175,6 @@
         <DataGrid x:Name="FindingsGrid" Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" SelectionUnit="FullRow" CanUserSortColumns="True" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.ScrollChanged="FindingsScroll_Changed" PreviewMouseWheel="Findings_MouseWheel" PreviewMouseRightButtonDown="Finding_RightClick" Sorting="FindingsGrid_Sorting" SelectionChanged="Finding_Selected" MouseDoubleClick="FindingsGrid_MouseDoubleClick">
           <DataGrid.Columns>
             <DataGridTemplateColumn Header="{local:Loc Preview}" Width="68"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Width="42" Height="36" Background="#18FFFFFF" CornerRadius="8" HorizontalAlignment="Center"><Grid><TextBlock Text="{Binding Category, Converter={StaticResource FileGlyphConverter}}" Foreground="#69B7FF" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/><local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="64" Width="38" Height="32" Stretch="Uniform"/></Grid></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-            <DataGridTextColumn x:Name="RiskColumn" Header="{local:Loc Risk}" SortMemberPath="RiskLevel" Binding="{Binding RiskLevel}" Width="90"/>
             <DataGridTemplateColumn SortMemberPath="DetectionPriorityRank" Width="132">
               <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{local:Loc PrivacyRisk}" ToolTip="{local:Loc PrivacyRiskHelp}"/></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
               <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -177,6 +183,7 @@
                 <TextBlock Text="{Binding CombinedPriority}" Foreground="#69B7FF" ToolTip="{local:Loc PrivacyRiskRadarHelp}"/>
               </StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
+            <DataGridTextColumn x:Name="RiskColumn" Header="{local:Loc DetectRisk}" SortMemberPath="RiskLevel" Binding="{Binding RiskLevel}" Width="110"/>
             <DataGridTextColumn Header="{local:Loc Type}" SortMemberPath="Category" Binding="{Binding Category}" Width="110"/>
             <DataGridTextColumn Header="{local:Loc Name}" SortMemberPath="DisplayName" Binding="{Binding DisplayName}" Width="190"/>
             <DataGridTemplateColumn Header="{local:Loc PersonalModelShort}" SortMemberPath="PersonalAttentionScore" Width="150">
