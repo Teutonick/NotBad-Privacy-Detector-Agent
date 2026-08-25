@@ -371,8 +371,9 @@
 
     <Border Grid.Row="1" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="16" Padding="0" Margin="0,0,0,12">
       <Grid>
-        <Grid.RowDefinitions><RowDefinition Height="28"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <Button x:Name="MediaDeepAnalysisToggle" Grid.Row="0" Click="MediaDeepAnalysisToggle_Click" Content="⌜⌟" Style="{StaticResource LinkButton}" Width="92" Height="28" Padding="0,0,0,3" HorizontalAlignment="Right" HorizontalContentAlignment="Center" VerticalAlignment="Top" Foreground="#66758A" FontSize="15" ToolTip="{local:Loc CollapseDeepAnalysisHelp}"/>
+        <Grid.RowDefinitions><RowDefinition Height="32"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Button x:Name="MediaDeepAnalysisToggle" Grid.Row="0" Click="MediaDeepAnalysisToggle_Click" Content="" Style="{StaticResource LinkButton}" Width="92" Height="32" Padding="0" HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip="{local:Loc CollapseDeepAnalysisHelp}"/>
+        <TextBlock Grid.Row="0" Text="⌜⌟" IsHitTestVisible="False" Width="92" Height="22" Margin="0,4,0,0" HorizontalAlignment="Right" VerticalAlignment="Top" TextAlignment="Center" Foreground="#66758A" FontSize="15"/>
         <StackPanel x:Name="MediaDeepAnalysisContent" Grid.Row="1" Margin="16,0,16,16">
         <Border x:Name="MediaPriorityPartialHintPanel" Background="#26FFB340" BorderBrush="#FFB340" BorderThickness="1" CornerRadius="10" Padding="12,8" Margin="0,0,0,12" Visibility="Collapsed">
           <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{local:Loc MediaPriorityPartialHint}" Foreground="#FFD36A" TextWrapping="Wrap" Margin="0,0,12,0"/><Button Grid.Column="1" Click="MediaPriorityPartialHintClose_Click" Content="✕" Style="{StaticResource LinkButton}" Foreground="#FFD36A" Padding="5,0" ToolTip="{local:Loc PriorityPartialHintClose}"/></Grid>
