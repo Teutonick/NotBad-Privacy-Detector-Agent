@@ -18,6 +18,8 @@ Restore is cancellable and remains non-destructive. `SnapshotStore.LoadAsync` ac
 
 `PrivacyRadarRanking` maintains two explicit axes. **Objective Privacy Risk** is a 0–100 scanner-evidence score built from original exposure and persisted confirmations such as PII, secrets, credentials, identity traces, sensitive archives, document/ID evidence, people and EXIF/GPS. **Personal Attention** is the independent 0–100 learned probability of user interest. Combined Radar priority uses an 80/20 objective/personal blend and evidence floors for confirmed secrets, credential configuration, identity documents and GPS, so preference cannot bury a confirmed high-impact signal. Findings exposes all three values and Details explains them separately.
 
+The Findings grid presents the two risk values in one compact `Privacy Risk` column as `Objective | Radar`; the Radar value is blue to indicate the AI/enrichment component. Its default and explicit column sort use `PrivacyRiskRank`, the rounded arithmetic mean of those two displayed values. If Personal Attention has not been predicted yet, Radar intentionally falls back to Objective, so the pair can be equal. The grid shows modified dates as calendar dates (`yyyy-MM-dd`) without time.
+
 NotBad Privacy Detector Agent follows `SCAN → DETECT → CLASSIFY → SIMILARITY MATCH → REPORT`. It does not decide that a file is unnecessary and does not delete files automatically.
 
 ## Layers

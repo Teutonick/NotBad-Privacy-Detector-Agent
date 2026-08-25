@@ -169,8 +169,14 @@
           <DataGrid.Columns>
             <DataGridTemplateColumn Header="{local:Loc Preview}" Width="68"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Width="42" Height="36" Background="#18FFFFFF" CornerRadius="8" HorizontalAlignment="Center"><Grid><TextBlock Text="{Binding Category, Converter={StaticResource FileGlyphConverter}}" Foreground="#69B7FF" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/><local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="64" Width="38" Height="32" Stretch="Uniform"/></Grid></Border></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
             <DataGridTextColumn x:Name="RiskColumn" Header="{local:Loc Risk}" SortMemberPath="RiskLevel" Binding="{Binding RiskLevel}" Width="90"/>
-            <DataGridTextColumn Header="{local:Loc ObjectivePrivacyRisk}" SortMemberPath="ObjectivePrivacyRisk" Binding="{Binding ObjectivePrivacyRisk}" Width="105"/>
-            <DataGridTextColumn Header="{local:Loc CombinedPriority}" SortMemberPath="CombinedPriority" Binding="{Binding CombinedPriority}" Width="105"/>
+            <DataGridTemplateColumn SortMemberPath="PrivacyRiskRank" Width="132">
+              <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{local:Loc PrivacyRisk}" ToolTip="{local:Loc PrivacyRiskHelp}"/></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+              <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding ObjectivePrivacyRisk}" Width="38"/>
+                <TextBlock Text="|" Foreground="#77849A" Margin="1,0"/>
+                <TextBlock Text="{Binding CombinedPriority}" Foreground="#69B7FF" Width="38" ToolTip="{local:Loc PrivacyRiskRadarHelp}"/>
+              </StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
             <DataGridTextColumn Header="{local:Loc Type}" SortMemberPath="Category" Binding="{Binding Category}" Width="110"/>
             <DataGridTextColumn Header="{local:Loc Name}" SortMemberPath="DisplayName" Binding="{Binding DisplayName}" Width="190"/>
             <DataGridTemplateColumn Header="{local:Loc PersonalModelShort}" SortMemberPath="PersonalAttentionScore" Width="150">
@@ -199,7 +205,7 @@
             <DataGridTextColumn Header="{local:Loc Path}" SortMemberPath="Path" Binding="{Binding Path}" Width="*"/>
             <DataGridTextColumn Header="{local:Loc Size}" SortMemberPath="SizeBytes" Binding="{Binding SizeDisplay}" Width="85"/>
             <DataGridTextColumn Header="{local:Loc Age}" SortMemberPath="ModifiedAt" Binding="{Binding AgeClass}" Width="95"/>
-            <DataGridTextColumn x:Name="ModifiedColumn" Header="{local:Loc Modified}" SortMemberPath="ModifiedAt" Binding="{Binding ModifiedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="140"/>
+            <DataGridTextColumn x:Name="ModifiedColumn" Header="{local:Loc Modified}" SortMemberPath="ModifiedAt" Binding="{Binding ModifiedAt, StringFormat={}{0:yyyy-MM-dd}}" Width="105"/>
           </DataGrid.Columns>
         </DataGrid>
         <ListBox x:Name="FindingsTileList" Grid.Row="0" Visibility="Collapsed" SelectionMode="Extended" Background="Transparent" BorderThickness="0" SelectionChanged="TileFinding_Selected" MouseDoubleClick="FindingsTile_DoubleClick" Tag="{Binding ElementName=FindingsTileZoom, Path=Value}" ScrollViewer.ScrollChanged="FindingsScroll_Changed" PreviewMouseWheel="Findings_MouseWheel" PreviewMouseRightButtonDown="Finding_RightClick" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">

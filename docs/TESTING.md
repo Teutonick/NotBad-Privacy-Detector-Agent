@@ -16,7 +16,7 @@ Snapshot and similarity coverage verifies that completed per-object similarity m
 
 Privacy Radar coverage verifies audit-context snapshot round-tripping, backward-compatible optional context, evidence-aware ranking from persisted deep-detector metadata, and safe audit-result reset that does not erase personal feedback or exclusions.
 
-Personal-model coverage verifies independent objective/personal axes, the 80/20 combined priority, bounded critical-evidence floors, feedback-to-deep-signal event history, refreshed feature snapshots, schema compatibility and validation-metric generation during training.
+Personal-model coverage verifies independent objective/personal axes, the 80/20 combined priority, bounded critical-evidence floors, the combined Privacy Risk average sort key, feedback-to-deep-signal event history, refreshed feature snapshots, schema compatibility and validation-metric generation during training.
 
 Cleanup tests use a dedicated temporary fake local-app-data root. They verify that secondary cleanup preserves AI recommendations and ratings, full cleanup removes only the owned root, and foreign roots are rejected.
 

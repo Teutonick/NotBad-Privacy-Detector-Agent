@@ -109,9 +109,22 @@ public sealed class PersonalAttentionTests
         var finding = new Finding { ExposureScore = 50, PersonalAttentionScore = 100 };
         Assert.Equal(50, PrivacyRadarRanking.ObjectiveRisk(finding));
         Assert.Equal(60, PrivacyRadarRanking.Score(finding));
+        Assert.Equal(55, finding.PrivacyRiskRank);
         finding.PersonalAttentionScore = 0;
         Assert.Equal(40, PrivacyRadarRanking.Score(finding));
         Assert.Equal(50, PrivacyRadarRanking.ObjectiveRisk(finding));
+        Assert.Equal(45, finding.PrivacyRiskRank);
+    }
+
+    [Fact]
+    public void PrivacyRiskRankCanBeSortedAsAverageOfBothDisplayedValues()
+    {
+        var lower = new Finding { ExposureScore = 80, PersonalAttentionScore = 0 };
+        var higher = new Finding { ExposureScore = 60, PersonalAttentionScore = 100 };
+
+        Assert.Equal(72, lower.PrivacyRiskRank);
+        Assert.Equal(64, higher.PrivacyRiskRank);
+        Assert.Same(lower, FindingPagination.Sort([higher, lower], nameof(Finding.PrivacyRiskRank), true).First());
     }
 
     [Fact]

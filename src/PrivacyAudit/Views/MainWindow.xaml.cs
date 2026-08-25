@@ -74,7 +74,7 @@ public partial class MainWindow : Window
     Finding[] _peopleScanImages = [];
     readonly MediaScanOperationState _peopleScanState = new();
     bool _peopleScanCancelRequested;
-    string _sortProperty = nameof(Finding.ExposureScore);
+    string _sortProperty = nameof(Finding.PrivacyRiskRank);
     bool _sortDescending = true;
     CancellationTokenSource? _textScanCts;
     CancellationTokenSource? _documentScanCts;
@@ -1218,8 +1218,19 @@ public partial class MainWindow : Window
         {
             if (!Dispatcher.HasShutdownStarted && !Dispatcher.HasShutdownFinished)
             {
-                if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false;
-                UpdateFindingsLoadButtons();
+                if (!Dispatcher.CheckAccess())
+                {
+                    _ = Dispatcher.InvokeAsync(() =>
+                    {
+                        if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false;
+                        UpdateFindingsLoadButtons();
+                    });
+                }
+                else
+                {
+                    if (ReferenceEquals(_pageLoadCts, loadSource)) _loadingFindingBatch = false;
+                    UpdateFindingsLoadButtons();
+                }
             }
         }
     }
