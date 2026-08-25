@@ -98,6 +98,7 @@ Scanner errors are isolated. Cancellation returns a partial report. System cultu
 - **Partial-scope disclosure**: the running wizard and Priority Report explicitly state that Triage Router covers only a subset. After completion, independently dismissible notices in Findings, Media and Application History point to the relevant whole-audit scanners.
 - **Priority Report pagination**: filtered/sorted priority findings are sliced through `FindingPagination` with the same 600-row list page size and previous/next status contract as Findings; filter changes return to page one.
 - **Audit-bound priority report**: starting any valid new primary audit deletes the previous priority-session sidecar and immediately hides its report. A new Triage Router plan is created only from the completed new finding set, so reports cannot cross audit boundaries.
+- **Overview scan controls**: the new-audit actions (`Start scan`, `Stop`, restore cancellation and `Back`) live inside the scan-settings card next to the preset and folder controls; the left side of the Privacy Radar card remains explanatory.
 - **Manual update check**: `Services/GitHubUpdateChecker.cs` reads GitHub's latest-release metadata only after the footer button is clicked, compares normalized assembly/release versions, and opens the release page only after a second confirmation. It never downloads or installs an update.
 
 # Selection, deletion and cancellation UX

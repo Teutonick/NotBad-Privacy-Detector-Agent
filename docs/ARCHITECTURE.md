@@ -100,6 +100,8 @@ The priority-audit sidecar belongs to exactly one primary audit fingerprint. Mor
 
 The priority workflow never presents its budgeted subset as a complete audit. A yellow explanation remains under live progress and in the finished report. Once the report exists, Findings, Media and Application History each show a separately dismissible, scanner-specific reminder directing the user to full-scope manual research. These notices reset with a new audit. Priority Report filtering and sorting produce a stable in-memory result set which is then paged through the shared `FindingPagination.ListPageSize`; every filter or search change resets the report to its first page.
 
+On Overview, the primary audit action controls are part of `ScanSettingsPanel`, directly below the preset and folder selectors. This keeps the explanatory Privacy Radar area separate from the controls while preserving the existing visibility and cancellation state transitions during restore and scanning.
+
 The Overview priority-start CTA is intentionally orange (`#FF9F0A` / `#FFD36A`) to distinguish the guided deep-check entry point from ordinary blue actions.
 
 The completed wizard exposes both the subset Priority Report and a separate **Open FULL report** action that selects the complete Findings tab. Media keeps scanner-specific cards and statuses but omits the redundant analysis heading/subheading; people/document card descriptions are intentionally short so the controls remain compact.
