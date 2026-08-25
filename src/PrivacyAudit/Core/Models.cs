@@ -41,6 +41,7 @@ public sealed class Finding : System.ComponentModel.INotifyPropertyChanged
     public int ObjectivePrivacyRisk => PrivacyRadarRanking.ObjectiveRisk(this);
     public int CombinedPriority => PrivacyRadarRanking.Score(this);
     public int PrivacyRiskRank => (int)Math.Round((ObjectivePrivacyRisk + CombinedPriority) / 2d, MidpointRounding.AwayFromZero);
+    public long DetectionPriorityRank => DetectionEvidenceCalculator.PriorityRank(this);
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     void OnChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
 }

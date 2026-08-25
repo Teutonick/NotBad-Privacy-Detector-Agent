@@ -74,7 +74,7 @@ public partial class MainWindow : Window
     Finding[] _peopleScanImages = [];
     readonly MediaScanOperationState _peopleScanState = new();
     bool _peopleScanCancelRequested;
-    string _sortProperty = nameof(Finding.PrivacyRiskRank);
+    string _sortProperty = nameof(Finding.DetectionPriorityRank);
     bool _sortDescending = true;
     CancellationTokenSource? _textScanCts;
     CancellationTokenSource? _documentScanCts;
@@ -1583,7 +1583,11 @@ public partial class MainWindow : Window
             .ToArray());
         await Dispatcher.InvokeAsync(() =>
         {
-            foreach (var item in restored) item.Finding.MetadataJson = PeopleScanMetadata.InjectIntoMetadata(item.Finding.MetadataJson, item.Result!);
+            foreach (var item in restored)
+            {
+                item.Finding.MetadataJson = PeopleScanMetadata.InjectIntoMetadata(item.Finding.MetadataJson, item.Result!);
+                item.Finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(item.Finding.MetadataJson, DetectionEvidenceCalculator.People);
+            }
             if (restored.Length > 0)
             {
                 SaveCurrentSnapshot();
@@ -1717,7 +1721,11 @@ public partial class MainWindow : Window
             foreach (var result in results)
             {
                 var finding = _findings.FirstOrDefault(x => x.Path.Equals(result.Path, StringComparison.OrdinalIgnoreCase));
-                if (finding is not null) finding.MetadataJson = PeopleScanMetadata.InjectIntoMetadata(finding.MetadataJson, result);
+                if (finding is not null)
+                {
+                    finding.MetadataJson = PeopleScanMetadata.InjectIntoMetadata(finding.MetadataJson, result);
+                    finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.People);
+                }
             }
             await RefreshPersonalScoresAfterDeepScanAsync(images, "PeopleScanCompleted");
             SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
@@ -1939,6 +1947,7 @@ public partial class MainWindow : Window
                         var text = TextExtractor.ExtractText(finding.Path);
                         var scan = string.IsNullOrWhiteSpace(text) ? new PiiDetectionResult() : PiiDetector.Scan(text);
                         finding.MetadataJson = PiiDetectionResult.InjectIntoMetadata(finding.MetadataJson, scan);
+                        finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.Pii);
                         if (scan.TotalMatches > 0)
                         {
                             Interlocked.Increment(ref foundCount);
@@ -2028,15 +2037,10 @@ public partial class MainWindow : Window
                     try
                     {
                         var text = TextExtractor.ExtractText(finding.Path);
-                        if (!string.IsNullOrWhiteSpace(text))
-                        {
-                            var scan = SecretDetector.Scan(text, finding.Path);
-                            if (scan.TotalMatches > 0)
-                            {
-                                finding.MetadataJson = SecretDetectionResult.InjectIntoMetadata(finding.MetadataJson, scan);
-                                Interlocked.Increment(ref foundCount);
-                            }
-                        }
+                        var scan = string.IsNullOrWhiteSpace(text) ? new SecretDetectionResult() : SecretDetector.Scan(text, finding.Path);
+                        finding.MetadataJson = SecretDetectionResult.InjectIntoMetadata(finding.MetadataJson, scan);
+                        finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.Secrets);
+                        if (scan.TotalMatches > 0) Interlocked.Increment(ref foundCount);
                     }
                     catch (Exception ex)
                     {
@@ -2122,9 +2126,10 @@ public partial class MainWindow : Window
                     try
                     {
                         var scan = CredentialConfigDetector.Analyze(finding.Path);
+                        finding.MetadataJson = CredentialConfigResult.InjectIntoMetadata(finding.MetadataJson, scan);
+                        finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.Configs);
                         if (scan.IsCredentialConfig)
                         {
-                            finding.MetadataJson = CredentialConfigResult.InjectIntoMetadata(finding.MetadataJson, scan);
                             Interlocked.Increment(ref foundCount);
                         }
                     }
@@ -2215,6 +2220,7 @@ public partial class MainWindow : Window
                     {
                         var scan = IdentityTraceDetector.Analyze(finding.Path, profile);
                         finding.MetadataJson = IdentityTraceResult.InjectIntoMetadata(finding.MetadataJson, scan);
+                        finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.Identity);
                         if (scan.HasIdentityTrace)
                         {
                             Interlocked.Increment(ref foundCount);
@@ -2305,9 +2311,10 @@ public partial class MainWindow : Window
                     try
                     {
                         var scan = ArchiveInspector.Inspect(finding.Path);
+                        finding.MetadataJson = ArchiveInspectionResult.InjectIntoMetadata(finding.MetadataJson, scan);
+                        finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.Archives);
                         if (scan.IsArchive)
                         {
-                            finding.MetadataJson = ArchiveInspectionResult.InjectIntoMetadata(finding.MetadataJson, scan);
                             if (scan.SensitiveEntriesCount > 0)
                             {
                                 Interlocked.Increment(ref foundCount);
@@ -2410,6 +2417,7 @@ public partial class MainWindow : Window
                     {
                         if (DocumentDetectionResult.TryParse(finding.MetadataJson, out var existing) && existing!.IsDocument)
                         {
+                            finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.Documents);
                             Interlocked.Increment(ref foundCount);
                             continue;
                         }
@@ -2422,11 +2430,9 @@ public partial class MainWindow : Window
                         }
 
                         var docResult = DocumentDetector.Analyze(finding.Path, faceDetected, faceCount);
-                        if (docResult.IsDocument)
-                        {
-                            finding.MetadataJson = DocumentDetectionResult.InjectIntoMetadata(finding.MetadataJson, docResult);
-                            Interlocked.Increment(ref foundCount);
-                        }
+                        finding.MetadataJson = DocumentDetectionResult.InjectIntoMetadata(finding.MetadataJson, docResult);
+                        finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.Documents);
+                        if (docResult.IsDocument) Interlocked.Increment(ref foundCount);
                     }
                     catch (Exception ex)
                     {
@@ -2573,9 +2579,10 @@ public partial class MainWindow : Window
                     try
                     {
                         var exifResult = ExifMetadataExtractor.Extract(finding.Path);
+                        finding.MetadataJson = ExifMetadataResult.InjectIntoMetadata(finding.MetadataJson, exifResult);
+                        finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.Exif);
                         if (exifResult.DisclosedFields.Count > 0)
                         {
-                            finding.MetadataJson = ExifMetadataResult.InjectIntoMetadata(finding.MetadataJson, exifResult);
                             Interlocked.Increment(ref metadataFound);
                             if (exifResult.HasGeolocation) Interlocked.Increment(ref gpsFound);
                         }

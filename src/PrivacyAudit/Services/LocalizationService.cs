@@ -212,6 +212,8 @@ public static class LocalizationService
         ["PeopleScanHelp"] = "Locally detect human faces in photos using the YuNet neural network without uploading data.",
         ["PeopleScanCancelHelp"] = "Stop the active media scanning process.",
         ["RemovePeopleModelHelp"] = "Delete the downloaded YuNet neural network model from disk to save space.",
+        ["MediaPageDescription"] = "Review found images and run targeted people, document and metadata searches.",
+        ["DetectionUnknown"] = "Unknown", ["DetectionNoFindings"] = "No confirmed detections",
         ["OpenFileHelp"] = "Open this file with the default Windows application."
     };
 
@@ -376,6 +378,8 @@ public static class LocalizationService
         ["PeopleScanHelp"] = "Локально ищет лица людей на фотографиях с помощью нейросети YuNet AI без отправки в сеть.",
         ["PeopleScanCancelHelp"] = "Останавливает текущее сканирование лиц или документов.",
         ["RemovePeopleModelHelp"] = "Удаляет скачанную модель нейросети YuNet с диска для освобождения места.",
+        ["MediaPageDescription"] = "Просматривай найденные изображения и запускай точечный поиск людей, документов и метаданных.",
+        ["DetectionUnknown"] = "Не проверено", ["DetectionNoFindings"] = "Подтверждённых детектов нет",
         ["OpenFileHelp"] = "Открыть этот файл в стандартной программе Windows."
     };
 

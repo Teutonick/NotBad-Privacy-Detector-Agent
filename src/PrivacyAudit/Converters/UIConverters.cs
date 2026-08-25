@@ -65,7 +65,7 @@ public sealed class FindingBadgeConverter : IValueConverter
 {
     public object? Convert(object value, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (value is not string json || string.IsNullOrWhiteSpace(json)) return "";
+        if (value is not string json || string.IsNullOrWhiteSpace(json)) return LocalizationService.Get("DetectionUnknown");
         var badges = new List<string>();
 
         if (PiiDetectionResult.TryParse(json, out var pii) && pii!.TotalMatches > 0)
@@ -110,7 +110,19 @@ public sealed class FindingBadgeConverter : IValueConverter
             }
         }
 
-        return badges.Count > 0 ? string.Join("  •  ", badges) : "";
+        if (DocumentDetectionResult.TryParse(json, out var document) && document!.IsDocument)
+        {
+            var label = LocalizationService.Get(document.IsIdentityDocument ? "IdDocumentBadge" : "DocumentBadge");
+            badges.Add(string.Format(label, document.Confidence));
+        }
+
+        if (PeopleScanMetadata.TryParse(json, out var people) && people!.PeopleDetected)
+            badges.Add($"{LocalizationService.Get("PeopleDetected")}: {people.FaceCount}");
+
+        if (badges.Count > 0) return string.Join("  •  ", badges);
+        return DetectionEvidenceCalculator.Summarize(json).HasCompletedScan
+            ? LocalizationService.Get("DetectionNoFindings")
+            : LocalizationService.Get("DetectionUnknown");
     }
 
     public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => System.Windows.Data.Binding.DoNothing;

@@ -38,6 +38,7 @@ public static class FindingPagination
             nameof(Finding.ObjectivePrivacyRisk) => Apply(source, x => x.ObjectivePrivacyRisk, descending),
             nameof(Finding.CombinedPriority) => Apply(source, x => x.CombinedPriority, descending),
             nameof(Finding.PrivacyRiskRank) => Apply(source, x => x.PrivacyRiskRank, descending),
+            nameof(Finding.DetectionPriorityRank) => Apply(source, x => x.DetectionPriorityRank, descending),
             nameof(Finding.Category) => Apply(source, x => x.Category, descending),
             nameof(Finding.DisplayName) => Apply(source, x => x.DisplayName, descending),
             nameof(Finding.Path) => Apply(source, x => x.Path, descending),
