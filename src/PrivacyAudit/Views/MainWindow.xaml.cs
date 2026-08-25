@@ -66,10 +66,17 @@ public partial class MainWindow : Window
     bool _loadingMediaBatch;
     bool _restoringMediaViewport;
     int _completedPeopleResults;
+    CancellationTokenSource? _peopleScanCts;
+    Finding[] _peopleScanImages = [];
+    readonly MediaScanOperationState _peopleScanState = new();
+    bool _peopleScanCancelRequested;
     string _sortProperty = nameof(Finding.ExposureScore);
     bool _sortDescending = true;
     CancellationTokenSource? _textScanCts;
     CancellationTokenSource? _documentScanCts;
+    Finding[] _documentScanImages = [];
+    readonly MediaScanOperationState _documentScanState = new();
+    bool _documentScanCancelRequested;
     CancellationTokenSource? _similarCts;
     CancellationTokenSource? _personalTrainingCts;
     CancellationTokenSource? _exifScanCts;
@@ -83,6 +90,7 @@ public partial class MainWindow : Window
     System.Windows.Controls.Button? _chooseButton;
     readonly object _heavyTaskLock = new();
     string? _activeHeavyTaskName;
+    int _activeMediaTaskCount;
 
     sealed class ActionDisposable(Action action) : IDisposable
     {
@@ -111,7 +119,7 @@ public partial class MainWindow : Window
     {
         lock (_heavyTaskLock)
         {
-            if (_activeHeavyTaskName is not null)
+            if (_activeHeavyTaskName is not null || _activeMediaTaskCount > 0)
             {
                 System.Windows.MessageBox.Show(
                     LocalizationService.Get("OperationAlreadyRunning"),
@@ -141,6 +149,52 @@ public partial class MainWindow : Window
         });
     }
 
+    IDisposable? TryAcquireMediaTask(string taskName)
+    {
+        lock (_heavyTaskLock)
+        {
+            if (_activeHeavyTaskName is not null)
+            {
+                System.Windows.MessageBox.Show(
+                    LocalizationService.Get("OperationAlreadyRunning"),
+                    LocalizationService.Get("AppTitle"),
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Information);
+                return null;
+            }
+
+            _activeMediaTaskCount++;
+            if (_activeMediaTaskCount == 1)
+            {
+                SetGlobalScanControlsEnabled(false);
+                SidebarFooterControl.SetGlobalBusy(true, taskName);
+            }
+        }
+
+        UpdateMediaOperationControls();
+        return new ActionDisposable(() =>
+        {
+            lock (_heavyTaskLock)
+            {
+                _activeMediaTaskCount = Math.Max(0, _activeMediaTaskCount - 1);
+                if (_activeMediaTaskCount == 0)
+                {
+                    Dispatcher.InvokeAsync(() =>
+                    {
+                        ClearCancellationProgress();
+                        SetGlobalScanControlsEnabled(true);
+                        SidebarFooterControl.SetGlobalBusy(false);
+                        UpdateModelControls();
+                        UpdateDocumentScanControls();
+                    });
+                    return;
+                }
+            }
+
+            Dispatcher.InvokeAsync(UpdateMediaOperationControls);
+        });
+    }
+
     void SetGlobalScanControlsEnabled(bool enabled)
     {
         if (ScanButton is not null) ScanButton.IsEnabled = enabled;
@@ -158,13 +212,16 @@ public partial class MainWindow : Window
         if (ApplicationHistoryAnalyzeButton is not null) ApplicationHistoryAnalyzeButton.IsEnabled = enabled && _auditAvailableForApplicationHistory;
     }
 
-    void RequestCancellation(CancellationTokenSource? source)
+    void RequestCancellation(CancellationTokenSource? source, bool showGlobalProgress = true)
     {
         if (source is null || source.IsCancellationRequested) return;
-        CancellationProgress.Visibility = Visibility.Visible;
-        CancellationProgress.IsIndeterminate = true;
-        CancellationText.Visibility = Visibility.Visible;
-        CancellationText.Text = LocalizationService.Get("CancellationInProgress");
+        if (showGlobalProgress)
+        {
+            CancellationProgress.Visibility = Visibility.Visible;
+            CancellationProgress.IsIndeterminate = true;
+            CancellationText.Visibility = Visibility.Visible;
+            CancellationText.Text = LocalizationService.Get("CancellationInProgress");
+        }
         _ = source.CancelAsync();
     }
 
@@ -410,7 +467,7 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("StartScan"));
         if (guard is null) return;
 
-        _cts = new(); _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
+        _cts = new(); _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; _peopleScanImages = []; _documentScanImages = []; _peopleScanState.Reset(); _documentScanState.Reset(); DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
         ScanButton.IsEnabled = false; CancelButton.IsEnabled = true; Busy.Visibility = Visibility.Visible;
         try
         {
@@ -1310,8 +1367,7 @@ public partial class MainWindow : Window
 
     bool HasPendingPeopleScanWork()
     {
-        if (_sortedMediaFindings.Length == 0) return false;
-        return _completedPeopleResults > 0 && _completedPeopleResults < _sortedMediaFindings.Length;
+        return _peopleScanState.IsPaused && _peopleScanImages.Length > 0;
     }
 
     async Task ApplyPersistedPeopleResultsAsync(IEnumerable<Finding> images)
@@ -1327,7 +1383,7 @@ public partial class MainWindow : Window
             .ToArray());
         await Dispatcher.InvokeAsync(() =>
         {
-            foreach (var item in restored) item.Finding.MetadataJson = PeopleScanMetadata.Serialize(item.Result!);
+            foreach (var item in restored) item.Finding.MetadataJson = PeopleScanMetadata.InjectIntoMetadata(item.Finding.MetadataJson, item.Result!);
             if (restored.Length > 0)
             {
                 SaveCurrentSnapshot();
@@ -1342,14 +1398,31 @@ public partial class MainWindow : Window
         bool installed;
         try { installed = _modelManager.IsInstalled; }
         catch { installed = false; }
-        var busy = _cts is not null;
+        var modelBusy = _cts is not null;
+        var peopleBusy = _peopleScanState.IsRunning;
         DownloadPeopleModelButton.Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
-        DownloadPeopleModelButton.IsEnabled = !busy;
+        DownloadPeopleModelButton.IsEnabled = !modelBusy && _activeMediaTaskCount == 0;
         PeopleScanButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
         PeopleScanButton.Content = LocalizationService.Get(HasPendingPeopleScanWork() ? "ContinuePeopleScan" : "SearchPeople");
-        PeopleScanButton.IsEnabled = installed && !busy;
-        RemovePeopleModelButton.IsEnabled = _modelManager.HasModelFiles && !busy;
-        PeopleScanCancelButton.IsEnabled = busy;
+        PeopleScanButton.IsEnabled = installed && !modelBusy && !peopleBusy;
+        RemovePeopleModelButton.IsEnabled = _modelManager.HasModelFiles && !modelBusy && !peopleBusy && _activeMediaTaskCount == 0;
+        PeopleScanPauseButton.IsEnabled = peopleBusy;
+        PeopleScanCancelButton.IsEnabled = modelBusy || peopleBusy || _peopleScanState.IsPaused;
+    }
+
+    void UpdateDocumentScanControls()
+    {
+        var running = _documentScanState.IsRunning;
+        DocumentScanButton.Content = LocalizationService.Get(_documentScanState.IsPaused ? "ContinueDocumentScan" : "SearchDocuments");
+        DocumentScanButton.IsEnabled = !running;
+        DocumentScanPauseButton.IsEnabled = running;
+        DocumentScanCancelButton.IsEnabled = running || _documentScanState.IsPaused;
+    }
+
+    void UpdateMediaOperationControls()
+    {
+        UpdateModelControls();
+        UpdateDocumentScanControls();
     }
     void ToggleFindingsView_Click(object sender, RoutedEventArgs e)
     {
@@ -1405,17 +1478,20 @@ public partial class MainWindow : Window
 
     async void PeopleScan_Click(object sender, RoutedEventArgs e)
     {
-        if (_cts is not null) return;
-        var guard = TryAcquireHeavyTask(LocalizationService.Get("PeopleScanRunningStage"));
+        if (_cts is not null || _peopleScanCts is not null) return;
+        var guard = TryAcquireMediaTask(LocalizationService.Get("PeopleScanRunningStage"));
         if (guard is null) return;
 
-        var images = _sortedMediaFindings.Where(x => File.Exists(x.Path)).ToArray();
+        var images = (_peopleScanImages.Length > 0 ? _peopleScanImages : _mediaFindings.ToArray()).Where(x => File.Exists(x.Path)).ToArray();
         if (images.Length == 0) { guard.Dispose(); StatusText.Text = LocalizationService.Get("NoImagesForPeopleScan"); PeopleScanErrorText.Text = LocalizationService.Get("NoImagesForPeopleScan"); PeopleScanErrorText.Visibility = Visibility.Visible; return; }
         try { if (!_modelManager.IsInstalled) { guard.Dispose(); ShowPeopleScanError(new ModelDownloadException(LocalizationService.Get("PeopleModelRequired"), "model_missing")); return; } }
         catch (Exception ex) { guard.Dispose(); ShowPeopleScanError(ex); return; }
 
-        _cts = new CancellationTokenSource();
-        UpdateModelControls(); CancelButton.IsEnabled = true; Busy.Visibility = Visibility.Visible;
+        _peopleScanImages = images;
+        _peopleScanState.Start();
+        _peopleScanCancelRequested = false;
+        _peopleScanCts = new CancellationTokenSource();
+        UpdateModelControls();
         ResetPeopleOperationMessage(); PeopleModelProgress.Visibility = Visibility.Visible; PeopleModelProgress.IsIndeterminate = true; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanCheckingModel");
         try
         {
@@ -1426,11 +1502,11 @@ public partial class MainWindow : Window
                 PeopleScanStageText.Text = LocalizationService.Get("PeopleScanRunningStage"); PeopleModelProgress.IsIndeterminate = false; PeopleModelProgress.Value = p.Total == 0 ? 0 : p.Completed / (double)p.Total; PeopleScanProgressText.Text = $"{p.Completed:N0} / {p.Total:N0}";
                 CountersText.Text = $"{LocalizationService.Get("PeopleDetected")}: {p.People:N0}   {LocalizationService.Get("PeopleScanErrors")}: {p.Errors:N0}";
             });
-            var results = await new PeopleScanner(_modelManager, _peopleRepository).ScanAsync(images, progress, _cts.Token);
+            var results = await new PeopleScanner(_modelManager, _peopleRepository).ScanAsync(images, progress, _peopleScanCts.Token);
             foreach (var result in results)
             {
                 var finding = _findings.FirstOrDefault(x => x.Path.Equals(result.Path, StringComparison.OrdinalIgnoreCase));
-                if (finding is not null) finding.MetadataJson = PeopleScanMetadata.Serialize(result);
+                if (finding is not null) finding.MetadataJson = PeopleScanMetadata.InjectIntoMetadata(finding.MetadataJson, result);
             }
             SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
             var people = results.Count(x => x.Status == PeopleScanStatus.Completed && x.PeopleDetected);
@@ -1444,28 +1520,58 @@ public partial class MainWindow : Window
                 PeopleScanErrorText.Visibility = Visibility.Visible;
             }
             StatusText.Text = string.Format(LocalizationService.Get("PeopleScanComplete"), results.Count, people, noPeople, errors);
+            _peopleScanState.Complete();
         }
         catch (OperationCanceledException)
         {
             await ApplyPersistedPeopleResultsAsync(images);
-            PeopleScanStageText.Text = LocalizationService.Get("PeopleScanCanceled"); ResetPeopleOperationMessage(); StatusText.Text = LocalizationService.Get("PeopleScanCanceled");
+            if (_peopleScanCancelRequested) _peopleScanState.Cancel(); else _peopleScanState.Pause();
+            PeopleScanStageText.Text = LocalizationService.Get(_peopleScanState.IsPaused ? "PeopleScanPaused" : "PeopleScanCanceled");
+            ResetPeopleOperationMessage();
+            StatusText.Text = LocalizationService.Get(_peopleScanState.IsPaused ? "PeopleScanPaused" : "PeopleScanCanceled");
         }
-        catch (Exception ex) { ShowPeopleScanError(ex); }
+        catch (Exception ex) { _peopleScanState.Cancel(); ShowPeopleScanError(ex); }
         finally
         {
             guard.Dispose();
-            _cts.Dispose(); _cts = null; CancelButton.IsEnabled = false; Busy.Visibility = Visibility.Collapsed; UpdateModelControls();
+            _peopleScanCts?.Dispose(); _peopleScanCts = null;
+            if (_peopleScanCancelRequested) _peopleScanImages = [];
+            UpdateModelControls();
         }
+    }
+
+    void PeopleScanPause_Click(object sender, RoutedEventArgs e)
+    {
+        if (_peopleScanCts is null) return;
+        _peopleScanCancelRequested = false;
+        PeopleScanStageText.Text = LocalizationService.Get("PeopleScanPausing");
+        RequestCancellation(_peopleScanCts, showGlobalProgress: false);
     }
 
     void PeopleScanCancel_Click(object sender, RoutedEventArgs e)
     {
-        var source = _cts ?? _documentScanCts ?? _exifScanCts ?? _similarCts;
-        RequestCancellation(source);
-        if (!ReferenceEquals(source, _cts)) RequestCancellation(_cts);
-        if (!ReferenceEquals(source, _documentScanCts)) RequestCancellation(_documentScanCts);
-        if (!ReferenceEquals(source, _exifScanCts)) RequestCancellation(_exifScanCts);
-        if (!ReferenceEquals(source, _similarCts)) RequestCancellation(_similarCts);
+        if (_cts is not null)
+        {
+            RequestCancellation(_cts);
+            return;
+        }
+
+        if (_peopleScanCts is not null)
+        {
+            _peopleScanCancelRequested = true;
+            PeopleScanStageText.Text = LocalizationService.Get("PeopleScanCanceling");
+            RequestCancellation(_peopleScanCts, showGlobalProgress: false);
+            return;
+        }
+
+        if (_peopleScanState.IsPaused)
+        {
+            _peopleScanState.Cancel();
+            _peopleScanImages = [];
+            PeopleScanStageText.Text = LocalizationService.Get("PeopleScanCanceled");
+            StatusText.Text = LocalizationService.Get("PeopleScanCanceled");
+            UpdateModelControls();
+        }
     }
 
     void UpdateModelDownloadProgress(ModelDownloadProgress progress)
@@ -2043,10 +2149,10 @@ public partial class MainWindow : Window
     async void DocumentScan_Click(object sender, RoutedEventArgs e)
     {
         if (_documentScanCts is not null) return;
-        var guard = TryAcquireHeavyTask(LocalizationService.Get("DocumentScanRunning"));
+        var guard = TryAcquireMediaTask(LocalizationService.Get("DocumentScanRunning"));
         if (guard is null) return;
 
-        var images = _sortedMediaFindings.Where(x => File.Exists(x.Path)).ToArray();
+        var images = (_documentScanImages.Length > 0 ? _documentScanImages : _mediaFindings.ToArray()).Where(x => File.Exists(x.Path)).ToArray();
         if (images.Length == 0)
         {
             guard.Dispose();
@@ -2054,16 +2160,17 @@ public partial class MainWindow : Window
             return;
         }
 
+        _documentScanImages = images;
+        _documentScanState.Start();
+        _documentScanCancelRequested = false;
         _documentScanCts = new CancellationTokenSource();
         var token = _documentScanCts.Token;
-        DocumentScanButton.IsEnabled = false;
-        PeopleScanButton.IsEnabled = false;
-        PeopleScanCancelButton.IsEnabled = true;
-        PeopleModelProgress.Visibility = Visibility.Visible;
-        PeopleModelProgress.IsIndeterminate = false;
-        PeopleModelProgress.Value = 0;
-        PeopleScanStageText.Text = LocalizationService.Get("DocumentScanRunning");
-        PeopleScanProgressText.Text = string.Format(LocalizationService.Get("DocumentScanProgressFormat"), 0, images.Length);
+        UpdateDocumentScanControls();
+        DocumentScanProgress.Visibility = Visibility.Visible;
+        DocumentScanProgress.IsIndeterminate = false;
+        DocumentScanProgress.Value = 0;
+        DocumentScanStageText.Text = LocalizationService.Get("DocumentScanRunning");
+        DocumentScanProgressText.Text = string.Format(LocalizationService.Get("DocumentScanProgressFormat"), 0, images.Length);
         StatusText.Text = LocalizationService.Get("DocumentScanRunning");
 
         int foundCount = 0;
@@ -2077,6 +2184,11 @@ public partial class MainWindow : Window
                     var finding = images[i];
                     try
                     {
+                        if (DocumentDetectionResult.TryParse(finding.MetadataJson, out var existing) && existing!.IsDocument)
+                        {
+                            Interlocked.Increment(ref foundCount);
+                            continue;
+                        }
                         var faceDetected = false;
                         var faceCount = 0;
                         if (PeopleScanMetadata.TryParse(finding.MetadataJson, out var people))
@@ -2102,8 +2214,8 @@ public partial class MainWindow : Window
                         var currentIdx = i + 1;
                         await Dispatcher.InvokeAsync(() =>
                         {
-                            PeopleModelProgress.Value = (double)currentIdx / images.Length;
-                            PeopleScanProgressText.Text = string.Format(LocalizationService.Get("DocumentScanProgressFormat"), currentIdx, images.Length);
+                            DocumentScanProgress.Value = (double)currentIdx / images.Length;
+                            DocumentScanProgressText.Text = string.Format(LocalizationService.Get("DocumentScanProgressFormat"), currentIdx, images.Length);
                         });
                     }
                 }
@@ -2118,31 +2230,67 @@ public partial class MainWindow : Window
             UpdatePeoplePresentation();
 
             var msg = string.Format(LocalizationService.Get("DocumentScanComplete"), foundCount);
+            DocumentScanStatsText.Text = msg;
             StatusText.Text = msg;
-            PeopleScanStageText.Text = msg;
-            PeopleScanProgressText.Text = "";
+            DocumentScanStageText.Text = msg;
+            DocumentScanProgressText.Text = "";
+            DocumentScanProgress.Value = 1;
+            _documentScanState.Complete();
         }
         catch (OperationCanceledException)
         {
-            StatusText.Text = LocalizationService.Get("TextScanCanceled");
-            PeopleScanStageText.Text = LocalizationService.Get("TextScanCanceled");
-            PeopleScanProgressText.Text = "";
+            if (_documentScanCancelRequested) _documentScanState.Cancel(); else _documentScanState.Pause();
+            SaveCurrentSnapshot();
+            UpdatePeoplePresentation();
+            RefreshFindingsPage(true);
+            DocumentScanStatsText.Text = string.Format(LocalizationService.Get("DocumentScanComplete"), _mediaFindings.Count(x => DocumentDetectionResult.TryParse(x.MetadataJson, out var result) && result!.IsDocument));
+            var message = LocalizationService.Get(_documentScanState.IsPaused ? "DocumentScanPaused" : "DocumentScanCanceled");
+            StatusText.Text = message;
+            DocumentScanStageText.Text = message;
+            DocumentScanProgressText.Text = "";
         }
         catch (Exception ex)
         {
+            _documentScanState.Cancel();
             CrashLogger.ShowErrorDialog(ex, "Поиск фото документов", this);
             StatusText.Text = ex.Message;
-            PeopleScanStageText.Text = ex.Message;
+            DocumentScanStageText.Text = ex.Message;
         }
         finally
         {
             guard.Dispose();
             _documentScanCts?.Dispose();
             _documentScanCts = null;
-            DocumentScanButton.IsEnabled = true;
-            PeopleScanButton.IsEnabled = true;
-            PeopleScanCancelButton.IsEnabled = false;
-            PeopleModelProgress.Visibility = Visibility.Collapsed;
+            if (_documentScanCancelRequested) _documentScanImages = [];
+            UpdateDocumentScanControls();
+        }
+    }
+
+    void DocumentScanPause_Click(object sender, RoutedEventArgs e)
+    {
+        if (_documentScanCts is null) return;
+        _documentScanCancelRequested = false;
+        DocumentScanStageText.Text = LocalizationService.Get("DocumentScanPausing");
+        RequestCancellation(_documentScanCts, showGlobalProgress: false);
+    }
+
+    void DocumentScanCancel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_documentScanCts is not null)
+        {
+            _documentScanCancelRequested = true;
+            DocumentScanStageText.Text = LocalizationService.Get("DocumentScanCanceling");
+            RequestCancellation(_documentScanCts, showGlobalProgress: false);
+            return;
+        }
+
+        if (_documentScanState.IsPaused)
+        {
+            _documentScanState.Cancel();
+            _documentScanImages = [];
+            DocumentScanStageText.Text = LocalizationService.Get("DocumentScanCanceled");
+            StatusText.Text = LocalizationService.Get("DocumentScanCanceled");
+            UpdateDocumentScanControls();
         }
     }
 
@@ -2165,7 +2313,7 @@ public partial class MainWindow : Window
         ExifScanButton.IsEnabled = false;
         PeopleScanButton.IsEnabled = false;
         DocumentScanButton.IsEnabled = false;
-        PeopleScanCancelButton.IsEnabled = true;
+        ExifScanCancelButton.IsEnabled = true;
         PeopleModelProgress.Visibility = Visibility.Visible;
         PeopleModelProgress.IsIndeterminate = false;
         PeopleModelProgress.Value = 0;
@@ -2244,10 +2392,12 @@ public partial class MainWindow : Window
             ExifScanButton.IsEnabled = true;
             PeopleScanButton.IsEnabled = true;
             DocumentScanButton.IsEnabled = true;
-            PeopleScanCancelButton.IsEnabled = false;
+            ExifScanCancelButton.IsEnabled = false;
             PeopleModelProgress.Visibility = Visibility.Collapsed;
         }
     }
+
+    void ExifScanCancel_Click(object sender, RoutedEventArgs e) => RequestCancellation(_exifScanCts);
 
     void MediaFilter_Changed(object sender, SelectionChangedEventArgs e)
     {
@@ -3048,8 +3198,8 @@ public partial class MainWindow : Window
     void Exclude_Click(object s, RoutedEventArgs e) { if (_selected is null) return; _db.AddExclusion(_selected.Path); _selected.Ignored = true; SaveCurrentSnapshot(); RefreshFindingsPage(); StatusText.Text = LocalizationService.Get("Excluded"); }
     void DeleteDb_Click(object s, RoutedEventArgs e) { if (System.Windows.MessageBox.Show(LocalizationService.Get("DeletePrompt"), "NotBad Privacy Detector Agent", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes) { _db.DeleteDatabase(); _db.DeleteProvenance(); _peopleRepository.DeleteAll(); StatusText.Text = LocalizationService.Get("DatabaseDeleted"); } }
 
-    public bool CanRunCleanup => _activeHeavyTaskName is null && _cts is null && _personalTrainingCts is null &&
-        _textScanCts is null && _documentScanCts is null && _similarCts is null && _exifScanCts is null;
+    public bool CanRunCleanup => _activeHeavyTaskName is null && _activeMediaTaskCount == 0 && _cts is null && _personalTrainingCts is null &&
+        _textScanCts is null && _peopleScanCts is null && _documentScanCts is null && _similarCts is null && _exifScanCts is null;
 
     public void ClearCachesAndAuditResults()
     {
@@ -3073,6 +3223,7 @@ public partial class MainWindow : Window
     {
         _cts?.Cancel();
         _textScanCts?.Cancel();
+        _peopleScanCts?.Cancel();
         _documentScanCts?.Cancel();
         _similarCts?.Cancel();
         _exifScanCts?.Cancel();

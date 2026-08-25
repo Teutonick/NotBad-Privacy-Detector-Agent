@@ -36,6 +36,23 @@ public static class PeopleScanMetadata
         FileSize = result.FileSize, FileModifiedAt = result.FileModifiedAt, Error = result.Error
     });
 
+    public static string InjectIntoMetadata(string? currentJson, PeopleScanResult result)
+    {
+        try
+        {
+            var metadata = string.IsNullOrWhiteSpace(currentJson)
+                ? new Dictionary<string, object>()
+                : JsonSerializer.Deserialize<Dictionary<string, object>>(currentJson) ?? new();
+            var people = JsonSerializer.Deserialize<Dictionary<string, object>>(Serialize(result)) ?? new();
+            foreach (var item in people) metadata[item.Key] = item.Value;
+            return JsonSerializer.Serialize(metadata);
+        }
+        catch
+        {
+            return Serialize(result);
+        }
+    }
+
     public static bool TryParse(string? json, out PeopleScanResult? result)
     {
         result = null;

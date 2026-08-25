@@ -32,6 +32,21 @@ public sealed class PeopleDetectionTests
     }
 
     [Fact]
+    public void PeopleMetadataInjectionPreservesDocumentMetadata()
+    {
+        var document = new DocumentDetectionResult { IsDocument = true, IsIdentityDocument = true, Confidence = 0.91 };
+        var current = DocumentDetectionResult.InjectIntoMetadata("", document);
+        var people = new PeopleScanResult("photo.jpg", PeopleScanStatus.Completed, true, 1, 0.93, "yunet-2026may", DateTime.UtcNow, 10, DateTime.Now);
+
+        var merged = PeopleScanMetadata.InjectIntoMetadata(current, people);
+
+        Assert.True(PeopleScanMetadata.TryParse(merged, out var peopleResult));
+        Assert.True(peopleResult!.PeopleDetected);
+        Assert.True(DocumentDetectionResult.TryParse(merged, out var documentResult));
+        Assert.True(documentResult!.IsDocument);
+    }
+
+    [Fact]
     public void RepositoryReusesOnlyMatchingFileFingerprintAndModel()
     {
         var root = Path.Combine(Path.GetTempPath(), "privacy-audit-people-tests", Guid.NewGuid().ToString("N"));

@@ -89,6 +89,11 @@ public sealed class CoreTests
         Assert.NotEmpty(LocalizationService.Get("DocumentScanHelp", ru));
         Assert.NotEmpty(LocalizationService.Get("ExifScanHelp", ru));
         Assert.NotEmpty(LocalizationService.Get("PeopleScanHelp", ru));
+        Assert.Equal("All images", LocalizationService.Get("MediaFilterAllImages", en));
+        Assert.Equal("Все изображения", LocalizationService.Get("MediaFilterAllImages", ru));
+        Assert.Contains("people, documents", LocalizationService.Get("MediaAnalysisTitle", en));
+        Assert.Contains("люди, документы", LocalizationService.Get("MediaAnalysisTitle", ru));
+        Assert.NotEmpty(LocalizationService.Get("DocumentScanPauseHelp", ru));
         Assert.Equal("Search", LocalizationService.Get("LegendSearchLabel", en));
         Assert.Equal("Поиск", LocalizationService.Get("LegendSearchLabel", ru));
         Assert.Contains("objects", LocalizationService.Get("DashboardCategorySummary", en));
