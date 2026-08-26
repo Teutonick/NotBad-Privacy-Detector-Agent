@@ -9,10 +9,12 @@ public sealed class ModelManager
     static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     readonly HttpClient _httpClient;
     readonly ModelIntegrityVerifier _integrityVerifier;
+    readonly string _applicationDataDirectory;
     readonly object _logGate = new();
 
     public ModelManager(string applicationDataDirectory, ModelManifest? manifest = null, HttpClient? httpClient = null, ModelIntegrityVerifier? integrityVerifier = null, TimeSpan? downloadTimeout = null)
     {
+        _applicationDataDirectory = applicationDataDirectory;
         Manifest = manifest ?? ModelManifest.YuNet2026May;
         DirectoryPath = Path.Combine(applicationDataDirectory, "Models", Manifest.PackageDirectory);
         LogPath = Path.Combine(applicationDataDirectory, Manifest.PackageDirectory == "YuNet" ? "people-model.log" : $"{Manifest.Id}-model.log");
@@ -82,7 +84,7 @@ public sealed class ModelManager
             progress?.Report(new(ModelDownloadStage.DownloadingLicense, total ?? 0, total));
             Log(string.IsNullOrWhiteSpace(Manifest.LicenseUrl) ? "Preparing the source-declared MIT license copy." : "Downloading the official MIT license copy.");
             var license = string.IsNullOrWhiteSpace(Manifest.LicenseUrl)
-                ? MitLicenseForOwenElliott
+                ? EmbeddedMitLicense()
                 : await _httpClient.GetStringAsync(Manifest.LicenseUrl, linkedToken.Token);
             if (!license.Contains("MIT License", StringComparison.OrdinalIgnoreCase))
                 throw new ModelDownloadException("The downloaded model license is not the expected MIT license.", "license_mismatch");
@@ -101,10 +103,23 @@ public sealed class ModelManager
         {
             var error = new ModelDownloadException($"The model download timed out after {DownloadTimeout.TotalSeconds:0} seconds. Check network access and try again.", "timeout");
             Log(error.Message, error);
+            if (!string.IsNullOrWhiteSpace(Manifest.MirrorUrl))
+            {
+                var mirrorManifest = Manifest with { Url = Manifest.MirrorUrl, MirrorUrl = "", LicenseUrl = "" };
+                return await new ModelManager(_applicationDataDirectory, mirrorManifest, _httpClient, _integrityVerifier, DownloadTimeout)
+                    .EnsureInstalledDetailedAsync(progress, cancellationToken);
+            }
             throw error;
         }
         catch (Exception ex)
         {
+            if (!string.IsNullOrWhiteSpace(Manifest.MirrorUrl) && (ex is HttpRequestException || ex is ModelDownloadException { Code: "hash_mismatch" or "license_mismatch" }))
+            {
+                Log("Upstream model download failed; retrying from the repository mirror.", ex);
+                var mirrorManifest = Manifest with { Url = Manifest.MirrorUrl, MirrorUrl = "", LicenseUrl = "" };
+                return await new ModelManager(_applicationDataDirectory, mirrorManifest, _httpClient, _integrityVerifier, DownloadTimeout)
+                    .EnsureInstalledDetailedAsync(progress, cancellationToken);
+            }
             Log("Model installation failed.", ex);
             throw;
         }
@@ -159,12 +174,14 @@ public sealed class ModelManager
     public void LogPeopleScanError(string path, Exception exception) => Log($"People scan failed for '{path}'.", exception);
     public void LogScanError(string scanName, string path, Exception exception) => Log($"{scanName} scan failed for '{path}'.", exception);
 
+    string EmbeddedMitLicense() => MitLicenseTemplate.Replace("{AUTHOR}", Manifest.Source.StartsWith("opencv/", StringComparison.OrdinalIgnoreCase) ? "OpenCV team" : "Owen Elliott", StringComparison.Ordinal);
+
     sealed record ModelMetadata(string Model, string Version, string License, string Sha256, string Source);
 
-    const string MitLicenseForOwenElliott = """
+    const string MitLicenseTemplate = """
         MIT License
 
-        Copyright (c) Owen Elliott
+        Copyright (c) {AUTHOR}
 
         Permission is hereby granted, free of charge, to any person obtaining a copy
         of this software and associated documentation files (the "Software"), to deal

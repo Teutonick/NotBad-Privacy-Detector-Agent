@@ -20,9 +20,10 @@
 | System.Threading.Channels | 8.0.0 | Зависимость ML.NET | MIT |
 | System.Drawing.Common / Microsoft.Win32.SystemEvents / System.CodeDom | 8.0.x | Windows/runtime | MIT |
 | .NET Windows Desktop Runtime и ILLink | 8.0.30 | Self-contained WPF runtime/build | MIT и уведомления .NET |
-| Модель YuNet | 2026may, только явная загрузка | Опциональная модель лиц | MIT; SHA-256 закреплён в коде и проверяется |
+| Модель YuNet | 2026may, только явная загрузка | Опциональная модель лиц | MIT; SHA-256 закреплён в коде и проверяется; зеркало `third_party/YuNet` |
+| Image Safety Classifier XS, OwenElliott | image-safety-classifier-xs, только явная загрузка | Локальная классификация NSFL / NSFW / SFW | MIT; SHA-256 закреплён в коде и проверяется; зеркало `third_party/ImageSafety` |
 
-Предобученная персональная модель не поставляется. Её веса и обучающие строки создаются только на компьютере пользователя. SDK телеметрии, рекламы, аналитики и облачного анализа отсутствуют.
+Предобученная персональная модель не поставляется. Её веса и обучающие строки создаются только на компьютере пользователя. SDK телеметрии, рекламы, аналитики и облачного анализа отсутствуют. В репозитории хранятся неизменённые зеркала моделей в `third_party/` с лицензиями, источниками и SHA-256; резервная загрузка используется только после явной неудачи официального источника.
 
 ---
 
@@ -46,7 +47,8 @@ The application is distributed under the MIT license, but its binary executable 
 | System.Threading.Channels | 8.0.0 | ML.NET dependency | MIT |
 | System.Drawing.Common / Microsoft.Win32.SystemEvents / System.CodeDom | 8.0.x | Windows / runtime support | MIT |
 | .NET Windows Desktop Runtime and ILLink | 8.0.30 | Self-contained WPF runtime & build | MIT and bundled .NET notices |
-| YuNet face detector model | 2026may, explicit download only | Optional face detection model | MIT; source-pinned SHA-256 is verified before use |
+| YuNet face detector model | 2026may, explicit download only | Optional face detection model | MIT; source-pinned SHA-256 is verified before use; mirror in `third_party/YuNet` |
+| Image Safety Classifier XS, OwenElliott | image-safety-classifier-xs, explicit download only | Local NSFL / NSFW / SFW classification | MIT; source-pinned SHA-256 is verified before use; mirror in `third_party/ImageSafety` |
 
 No pretrained personal model is distributed. Its weights and training records are created strictly on the user's computer. SDKs for telemetry, advertising, analytics, or cloud analysis are entirely absent.
-Image Safety Classifier XS (`image-safety-classifier-xs`) by OwenElliott is an optional MIT-licensed ONNX model downloaded only after an explicit user action. Its SHA-256 is pinned and verified before installation; the MIT license is stored beside the model.
+Image Safety Classifier XS (`image-safety-classifier-xs`) by OwenElliott is an optional MIT-licensed ONNX model downloaded only after an explicit user action. Its SHA-256 is pinned and verified before installation; the MIT license is stored beside the model. The repository keeps unmodified model mirrors under `third_party/`, each with `LICENSE.txt`, `SOURCE.md` and `SHA256SUMS.txt`; `ModelManager` retries a mirror only when the upstream download is unavailable or fails SHA/license validation.

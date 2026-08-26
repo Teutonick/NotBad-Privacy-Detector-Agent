@@ -12,6 +12,8 @@ It redirects temporary state into the workspace, restores dependencies, runs Rel
 
 Coverage includes scoring, classification, age and bidirectional media-resolution filters, original image-header dimensions, pagination windows and viewport-anchor offset restoration, localization fallback, exclusions, SQLite, scanner isolation, partial cancellation, independent Media people/document operation state and localized control text, filesystem discovery, WPF construction and packaged-process lifecycle. Tests never delete system data or require administrator rights.
 
+Optional-model tests verify the Image Safety XS manifest and strict NSFW filter threshold, preservation of all three scores, unchanged-file reuse, obsolete-package cleanup only after verification, and retrying the checked-in repository mirror after an upstream download failure.
+
 Snapshot and similarity coverage verifies that completed per-object similarity matches survive metadata serialization while unrelated detector metadata remains intact. Snapshot tests also verify that asynchronous restore honors a pre-canceled token. Manual responsiveness checks use a large restored audit and confirm that snapshot enrichment, media candidate preparation and model integrity verification do not execute on the WPF dispatcher; the restore-cancel action must open the new-audit form immediately and preserve the old snapshot until a new audit starts.
 
 Overview state coverage verifies that the primary-audit Stop button is hidden while the form is idle, during restore and after restore, while the separate restore-cancel action remains available. The folder path field and picker button are also checked visually as one horizontal control row.

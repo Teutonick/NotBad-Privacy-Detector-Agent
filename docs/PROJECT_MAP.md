@@ -67,6 +67,7 @@ PrivacyAudit.sln
 │   └── Storage/                    local SQLite persistence & snapshots
 │   └── AppDataCleanupService.cs   scoped cleanup that rejects foreign roots and reparse traversal
 ├── tests/PrivacyAudit.Tests/       automated core, storage, UI-construction and lifecycle tests
+├── third_party/                    checked-in YuNet and Image Safety XS mirrors with LICENSE.txt, SOURCE.md and SHA256SUMS.txt
 ├── scripts/verify.ps1              mandatory release verification
 ├── scripts/package-release.ps1     verified versioned ZIP + legal/privacy/license documents
 ├── Directory.Build.props           isolated build outputs, no lock against running release

@@ -13,6 +13,7 @@ public sealed class ImageSafetyTests
         Assert.Equal("MIT", manifest.License);
         Assert.Equal("8C28C49D9075F3AD15EBDC2961F02D5B3F99BE944815B848B49C9F0E6F3FB689", manifest.Sha256);
         Assert.Contains("/resolve/606ad3dfd6a023215e3ab0797040437cc365977b/", manifest.Url);
+        Assert.Contains("third_party/ImageSafety/image-safety-classifier-xs.onnx", manifest.MirrorUrl);
     }
 
     [Theory]
@@ -84,9 +85,37 @@ public sealed class ImageSafetyTests
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
 
+    [Fact]
+    public async Task DownloadRetriesRepositoryMirrorAfterUpstreamFailure()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"privacy-audit-safety-mirror-{Guid.NewGuid():N}");
+        var bytes = new byte[] { 9, 8, 7, 6 };
+        var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+        var manifest = new ModelManifest("xs", "test", "MIT", "xs.onnx", "https://upstream.invalid/xs.onnx", digest, "", "ImageSafety", "XS", "test", "https://mirror.invalid/xs.onnx");
+        try
+        {
+            using var client = new HttpClient(new FailOnceHandler(bytes));
+            var manager = new ModelManager(root, manifest, client);
+            await manager.EnsureInstalledDetailedAsync();
+            Assert.True(File.Exists(manager.ModelPath));
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(manager.ModelPath));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
     sealed class BytesHandler(byte[] bytes) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) });
+    }
+
+    sealed class FailOnceHandler(byte[] bytes) : HttpMessageHandler
+    {
+        int _calls;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _calls) == 1) throw new HttpRequestException("upstream unavailable");
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) });
+        }
     }
 }

@@ -12,7 +12,8 @@ public sealed record ModelManifest(
     [property: JsonPropertyName("license_url")] string LicenseUrl,
     [property: JsonPropertyName("package_directory")] string PackageDirectory = "YuNet",
     [property: JsonPropertyName("display_name")] string DisplayName = "YuNet",
-    [property: JsonPropertyName("source")] string Source = "opencv/opencv_zoo")
+    [property: JsonPropertyName("source")] string Source = "opencv/opencv_zoo",
+    [property: JsonPropertyName("mirror_url")] string MirrorUrl = "")
 {
     public string ModelVersion => $"{Id}-{Version}";
 
@@ -25,7 +26,9 @@ public sealed record ModelManifest(
         "face_detection_yunet_2026may.onnx",
         "https://github.com/opencv/opencv_zoo/raw/refs/heads/main/models/face_detection_yunet/face_detection_yunet_2026may.onnx",
         "EBAFCE4E3C118D6554634BE5C27AB333B4C047A9A8C3FAF1D7CF93101C22F0F0",
-        "https://github.com/opencv/opencv_zoo/raw/refs/heads/main/models/face_detection_yunet/LICENSE");
+        "https://github.com/opencv/opencv_zoo/raw/refs/heads/main/models/face_detection_yunet/LICENSE",
+        "YuNet", "YuNet", "opencv/opencv_zoo",
+        "https://raw.githubusercontent.com/Teutonick/InfoSec-AUDIT-LOCAL/main/third_party/YuNet/face_detection_yunet_2026may.onnx");
 
     public static ModelManifest ImageSafetyXs { get; } = new(
         "image-safety-classifier-xs",
@@ -37,5 +40,6 @@ public sealed record ModelManifest(
         "",
         "ImageSafety",
         "Image Safety Classifier XS",
-        "OwenElliott/image-safety-classifier-xs");
+        "OwenElliott/image-safety-classifier-xs",
+        "https://raw.githubusercontent.com/Teutonick/InfoSec-AUDIT-LOCAL/main/third_party/ImageSafety/image-safety-classifier-xs.onnx");
 }

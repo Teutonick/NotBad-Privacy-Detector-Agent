@@ -454,7 +454,7 @@
                   <Button x:Name="NsfwScanCancelButton" Click="NsfwScanCancel_Click" Content="{local:Loc StopScan}" Padding="12,8" IsEnabled="False" ToolTip="{local:Loc NsfwScanCancelHelp}" Margin="0,0,6,6"/>
                   <Button x:Name="RemoveNsfwModelButton" Click="RemoveNsfwModel_Click" Content="{local:Loc RemoveNsfwModel}" Padding="12,8" IsEnabled="False" ToolTip="{local:Loc RemoveNsfwModelHelp}" Margin="0,0,6,6"/>
                 </WrapPanel>
-                <ToggleButton x:Name="BlurNsfwThumbnailsButton" Grid.Column="1" Width="34" Height="34" HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip="{local:Loc BlurNsfwThumbnailsHelp}" Cursor="Hand" Foreground="#A9C8E5" Background="Transparent" BorderThickness="0" Padding="0" Margin="8,0,0,6">
+                <ToggleButton x:Name="BlurNsfwThumbnailsButton" Grid.Column="1" Width="34" Height="34" HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip="{local:Loc BlurNsfwThumbnailsHelp}" Cursor="Hand" Foreground="#66758A" Background="Transparent" BorderThickness="0" Padding="0" Margin="8,0,0,6">
                   <ToggleButton.Template>
                     <ControlTemplate TargetType="ToggleButton">
                       <Grid Width="26" Height="26" Background="Transparent">
@@ -463,8 +463,8 @@
                         <Line x:Name="EyeSlash" X1="4" Y1="4" X2="22" Y2="22" Stroke="{TemplateBinding Foreground}" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed"/>
                       </Grid>
                       <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="White"/></Trigger>
-                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="EyeSlash" Property="Visibility" Value="Visible"/><Setter Property="Foreground" Value="#69B7FF"/></Trigger>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="#7C899A"/></Trigger>
+                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="EyeSlash" Property="Visibility" Value="Visible"/><Setter Property="Foreground" Value="#66758A"/></Trigger>
                       </ControlTemplate.Triggers>
                     </ControlTemplate>
                   </ToggleButton.Template>

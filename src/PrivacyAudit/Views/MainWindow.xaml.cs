@@ -2342,7 +2342,7 @@ public partial class MainWindow : Window
             {
                 NsfwScanProgress.Value = p.Total == 0 ? 0 : p.Completed / (double)p.Total;
                 NsfwScanStageText.Text = string.Format(LocalizationService.Get("NsfwScanRunning"), p.Completed, p.Total);
-                NsfwScanProgressText.Text = $"NSFW: {p.Nsfw:N0} · NSFL: {p.Nsfl:N0} · {LocalizationService.Get("PeopleScanErrors")}: {p.Errors:N0}";
+                NsfwScanProgressText.Text = $"NSFW: {p.Nsfw:N0} · {LocalizationService.Get("PeopleScanErrors")}: {p.Errors:N0}";
             });
             var results = await new ImageSafetyScanner(_imageSafetyModelManager, _imageSafetyRepository).ScanAsync(images, false, progress, _imageSafetyScanCts.Token);
             foreach (var result in results)
