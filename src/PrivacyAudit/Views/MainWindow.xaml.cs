@@ -2306,7 +2306,7 @@ public partial class MainWindow : Window
         catch (Exception ex) { ShowPeopleScanError(ex); return; }
         _cts = new CancellationTokenSource();
         UpdateModelControls(); CancelButton.IsEnabled = true; Busy.Visibility = Visibility.Visible;
-        ResetPeopleOperationMessage(); PeopleModelProgress.Visibility = Visibility.Visible; PeopleModelProgress.IsIndeterminate = true; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanConnecting");
+        ResetPeopleOperationMessage(); PeopleScanProgressText.Visibility = Visibility.Visible; PeopleModelProgress.Visibility = Visibility.Visible; PeopleModelProgress.IsIndeterminate = true; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanConnecting");
         try
         {
             StatusText.Text = LocalizationService.Get("PeopleModelDownload");
@@ -2329,7 +2329,7 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("DownloadNsfwModel"));
         if (guard is null) return;
         _cts = new CancellationTokenSource(); UpdateModelControls();
-        NsfwScanProgress.Visibility = Visibility.Visible; NsfwScanProgress.IsIndeterminate = true; NsfwScanErrorText.Visibility = Visibility.Collapsed;
+        NsfwScanProgress.Visibility = Visibility.Visible; NsfwScanProgressText.Visibility = Visibility.Visible; NsfwScanProgress.IsIndeterminate = true; NsfwScanErrorText.Visibility = Visibility.Collapsed;
         try
         {
             var progress = new Progress<ModelDownloadProgress>(p =>
@@ -2378,6 +2378,7 @@ public partial class MainWindow : Window
             NsfwScanProgress.IsIndeterminate = false;
             NsfwScanProgress.Value = 0;
             NsfwScanProgressText.Text = "";
+            NsfwScanProgressText.Visibility = Visibility.Collapsed;
             NsfwScanStageText.Text = LocalizationService.Get("NsfwScanReady");
             StatusText.Text = LocalizationService.Get("NoImagesForNsfwScan");
             UpdateModelControls();
@@ -2387,14 +2388,14 @@ public partial class MainWindow : Window
         _imageSafetyScanState.Start();
         _imageSafetyScanCancelRequested = false;
         _imageSafetyScanCts = new CancellationTokenSource(); UpdateModelControls();
-        NsfwScanProgress.Visibility = Visibility.Visible; NsfwScanProgress.IsIndeterminate = false; NsfwScanProgress.Value = 0; NsfwScanErrorText.Visibility = Visibility.Collapsed;
+        NsfwScanProgress.Visibility = Visibility.Visible; NsfwScanProgressText.Visibility = Visibility.Collapsed; NsfwScanProgress.IsIndeterminate = false; NsfwScanProgress.Value = 0; NsfwScanErrorText.Visibility = Visibility.Collapsed;
         try
         {
             var progress = new Progress<ImageSafetyScanProgress>(p =>
             {
                 NsfwScanProgress.Value = p.Total == 0 ? 0 : p.Completed / (double)p.Total;
-                NsfwScanStageText.Text = string.Format(LocalizationService.Get("NsfwScanRunning"), p.Completed, p.Total);
-                NsfwScanProgressText.Text = $"NSFW: {p.Nsfw:N0} · {LocalizationService.Get("PeopleScanErrors")}: {p.Errors:N0}";
+                NsfwScanStageText.Text = string.Format(LocalizationService.Get("NsfwCompactProgress"), p.Completed, p.Total, p.Completed, p.Nsfw, p.Nsfl, p.Errors);
+                NsfwScanProgressText.Text = "";
             });
             var results = await new ImageSafetyScanner(_imageSafetyModelManager, _imageSafetyRepository).ScanAsync(images, false, progress, _imageSafetyScanCts.Token);
             foreach (var result in results)
@@ -2408,7 +2409,7 @@ public partial class MainWindow : Window
             var nsfw = results.Count(x => x.Status == ImageSafetyScanStatus.Completed && x.PrimaryClass == ImageSafetyClass.NSFW);
             var nsfl = results.Count(x => x.Status == ImageSafetyScanStatus.Completed && x.PrimaryClass == ImageSafetyClass.NSFL);
             var errors = results.Count(x => x.Status == ImageSafetyScanStatus.Error);
-            NsfwScanProgress.Value = 1; NsfwScanStageText.Text = string.Format(LocalizationService.Get("NsfwScanComplete"), results.Count, nsfw, nsfl, errors); StatusText.Text = NsfwScanStageText.Text;
+            NsfwScanProgress.Value = 1; NsfwScanStageText.Text = string.Format(LocalizationService.Get("NsfwScanComplete"), results.Count, nsfw, nsfl, errors); NsfwScanProgressText.Text = ""; NsfwScanProgressText.Visibility = Visibility.Collapsed; StatusText.Text = NsfwScanStageText.Text;
             _imageSafetyScanState.Complete();
             _imageSafetyScanImages = [];
         }
@@ -2482,7 +2483,7 @@ public partial class MainWindow : Window
         var guard = TryAcquireMediaTask(LocalizationService.Get("PeopleScanRunningStage"));
         if (guard is null) return;
 
-        ResetPeopleOperationMessage(); PeopleModelProgress.Visibility = Visibility.Visible; PeopleModelProgress.IsIndeterminate = true; PeopleScanStageText.Text = LocalizationService.Get("MediaScanPreparing");
+        ResetPeopleOperationMessage(); PeopleScanProgressText.Visibility = Visibility.Collapsed; PeopleScanStageText.Visibility = Visibility.Visible; PeopleScanStatsText.Text = ""; PeopleModelProgress.Visibility = Visibility.Visible; PeopleModelProgress.IsIndeterminate = true; PeopleScanStageText.Text = LocalizationService.Get("MediaScanPreparing");
         StatusText.Text = LocalizationService.Get("MediaScanPreparing");
         await Task.Yield();
         var resuming = _peopleScanState.IsPaused && _peopleScanImages.Length > 0;
@@ -2499,6 +2500,7 @@ public partial class MainWindow : Window
             PeopleModelProgress.IsIndeterminate = false;
             PeopleModelProgress.Value = 0;
             PeopleScanProgressText.Text = "";
+            PeopleScanStageText.Visibility = Visibility.Visible;
             PeopleScanStageText.Text = LocalizationService.Get("PeopleScanReady");
             StatusText.Text = LocalizationService.Get("NoImagesForPeopleScan");
             PeopleScanErrorText.Text = LocalizationService.Get("NoImagesForPeopleScan");
@@ -2514,14 +2516,14 @@ public partial class MainWindow : Window
         _peopleScanCancelRequested = false;
         _peopleScanCts = new CancellationTokenSource();
         UpdateModelControls();
-        ResetPeopleOperationMessage(); PeopleModelProgress.Visibility = Visibility.Visible; PeopleModelProgress.IsIndeterminate = true; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanCheckingModel");
+        ResetPeopleOperationMessage(); PeopleScanProgressText.Visibility = Visibility.Collapsed; PeopleScanStageText.Visibility = Visibility.Visible; PeopleScanStatsText.Text = ""; PeopleModelProgress.Visibility = Visibility.Visible; PeopleModelProgress.IsIndeterminate = true; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanCheckingModel");
         try
         {
             PeopleScanStageText.Text = LocalizationService.Get("PeopleScanRunningStage"); PeopleModelProgress.IsIndeterminate = true;
             var progress = new Progress<PeopleScanProgress>(p =>
             {
                 StatusText.Text = string.Format(LocalizationService.Get("PeopleScanRunning"), p.Completed, p.Total);
-                PeopleScanStageText.Text = LocalizationService.Get("PeopleScanRunningStage"); PeopleModelProgress.IsIndeterminate = false; PeopleModelProgress.Value = p.Total == 0 ? 0 : p.Completed / (double)p.Total; PeopleScanProgressText.Text = $"{p.Completed:N0} / {p.Total:N0}";
+                PeopleScanStageText.Visibility = Visibility.Collapsed; PeopleScanStatsText.Text = string.Format(LocalizationService.Get("PeopleScanCompactProgress"), p.Completed, p.Total, p.Completed, p.People, p.Completed - p.People - p.Errors, p.Errors); PeopleModelProgress.IsIndeterminate = false; PeopleModelProgress.Value = p.Total == 0 ? 0 : p.Completed / (double)p.Total; PeopleScanProgressText.Text = "";
                 CountersText.Text = $"{LocalizationService.Get("PeopleDetected")}: {p.People:N0}   {LocalizationService.Get("PeopleScanErrors")}: {p.Errors:N0}";
             });
             var results = await new PeopleScanner(_modelManager, _peopleRepository).ScanAsync(images, progress, _peopleScanCts.Token);
@@ -2539,7 +2541,7 @@ public partial class MainWindow : Window
             var people = results.Count(x => x.Status == PeopleScanStatus.Completed && x.PeopleDetected);
             var noPeople = results.Count(x => x.Status == PeopleScanStatus.Completed && !x.PeopleDetected);
             var errors = results.Count(x => x.Status == PeopleScanStatus.Error);
-            PeopleModelProgress.IsIndeterminate = false; PeopleModelProgress.Value = 1; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanCompleted"); ResetPeopleOperationMessage();
+            PeopleModelProgress.IsIndeterminate = false; PeopleModelProgress.Value = 1; PeopleScanStageText.Visibility = Visibility.Collapsed; PeopleScanStatsText.Text = string.Format(LocalizationService.Get("PeopleScanCompleteSummary"), results.Count, people, noPeople, errors); ResetPeopleOperationMessage();
             if (errors > 0)
             {
                 var firstError = results.FirstOrDefault(x => x.Status == PeopleScanStatus.Error)?.Error;
@@ -2553,6 +2555,7 @@ public partial class MainWindow : Window
         {
             await ApplyPersistedPeopleResultsAsync(images);
             if (_peopleScanCancelRequested) _peopleScanState.Cancel(); else _peopleScanState.Pause();
+            PeopleScanStageText.Visibility = Visibility.Visible;
             PeopleScanStageText.Text = LocalizationService.Get(_peopleScanState.IsPaused ? "PeopleScanPaused" : "PeopleScanCanceled");
             ResetPeopleOperationMessage();
             StatusText.Text = LocalizationService.Get(_peopleScanState.IsPaused ? "PeopleScanPaused" : "PeopleScanCanceled");
@@ -2571,6 +2574,7 @@ public partial class MainWindow : Window
     {
         if (_peopleScanCts is null) return;
         _peopleScanCancelRequested = false;
+        PeopleScanStageText.Visibility = Visibility.Visible;
         PeopleScanStageText.Text = LocalizationService.Get("PeopleScanPausing");
         RequestCancellation(_peopleScanCts, showGlobalProgress: false);
     }
@@ -2586,6 +2590,7 @@ public partial class MainWindow : Window
         if (_peopleScanCts is not null)
         {
             _peopleScanCancelRequested = true;
+            PeopleScanStageText.Visibility = Visibility.Visible;
             PeopleScanStageText.Text = LocalizationService.Get("PeopleScanCanceling");
             RequestCancellation(_peopleScanCts, showGlobalProgress: false);
             return;
@@ -2595,6 +2600,7 @@ public partial class MainWindow : Window
         {
             _peopleScanState.Cancel();
             _peopleScanImages = [];
+            PeopleScanStageText.Visibility = Visibility.Visible;
             PeopleScanStageText.Text = LocalizationService.Get("PeopleScanCanceled");
             StatusText.Text = LocalizationService.Get("PeopleScanCanceled");
             UpdateModelControls();
@@ -2617,12 +2623,12 @@ public partial class MainWindow : Window
         if (progress.Fraction is double fraction)
         {
             PeopleModelProgress.IsIndeterminate = false; PeopleModelProgress.Value = fraction;
-            PeopleScanProgressText.Text = progress.TotalBytes is long total ? $"{Format.Bytes(progress.BytesReceived)} / {Format.Bytes(total)} ({fraction:P0})" : $"{Format.Bytes(progress.BytesReceived)} ({fraction:P0})";
+            PeopleScanProgressText.Visibility = Visibility.Visible; PeopleScanProgressText.Text = progress.TotalBytes is long total ? $"{Format.Bytes(progress.BytesReceived)} / {Format.Bytes(total)} ({fraction:P0})" : $"{Format.Bytes(progress.BytesReceived)} ({fraction:P0})";
         }
         else
         {
             PeopleModelProgress.IsIndeterminate = progress.Stage is ModelDownloadStage.Connecting or ModelDownloadStage.Downloading;
-            PeopleScanProgressText.Text = progress.Stage == ModelDownloadStage.Downloading ? LocalizationService.Get("PeopleScanWaitingForNetwork") : "";
+            PeopleScanProgressText.Visibility = Visibility.Visible; PeopleScanProgressText.Text = progress.Stage == ModelDownloadStage.Downloading ? LocalizationService.Get("PeopleScanWaitingForNetwork") : "";
         }
         CountersText.Text = progress.TotalBytes is long bytes ? $"{Format.Bytes(progress.BytesReceived)} / {Format.Bytes(bytes)}" : "";
     }
@@ -2632,6 +2638,7 @@ public partial class MainWindow : Window
         PeopleScanErrorText.Text = "";
         PeopleScanErrorText.Visibility = Visibility.Collapsed;
         PeopleScanProgressText.Text = "";
+        PeopleScanProgressText.Visibility = Visibility.Collapsed;
     }
 
     void ShowPeopleScanError(Exception exception, bool showDialog = false)
@@ -2648,7 +2655,7 @@ public partial class MainWindow : Window
             _ => exception.Message
         };
         var details = $"{message}\n\n{string.Format(LocalizationService.Get("PeopleScanLogPath"), _modelManager.LogPath)}";
-        PeopleScanStageText.Text = LocalizationService.Get("PeopleScanFailedTitle"); PeopleScanErrorText.Text = details; PeopleScanErrorText.Visibility = Visibility.Visible; PeopleScanProgressText.Text = ""; StatusText.Text = message;
+        PeopleScanStageText.Visibility = Visibility.Visible; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanFailedTitle"); PeopleScanErrorText.Text = details; PeopleScanErrorText.Visibility = Visibility.Visible; PeopleScanProgressText.Text = ""; StatusText.Text = message;
         if (showDialog) System.Windows.MessageBox.Show(details, "NotBad Privacy Detector Agent", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
@@ -2656,7 +2663,7 @@ public partial class MainWindow : Window
     {
         if (!_modelManager.HasModelFiles || _cts is not null) { UpdateModelControls(); return; }
         if (System.Windows.MessageBox.Show(LocalizationService.Get("PeopleModelRemovePrompt"), "NotBad Privacy Detector Agent", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
-        try { _modelManager.RemoveInstalledModel(); _peopleModelInstalled = false; _peopleModelStatusKnown = true; PeopleModelProgress.Visibility = Visibility.Collapsed; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanReady"); PeopleScanProgressText.Text = ""; PeopleScanErrorText.Visibility = Visibility.Collapsed; StatusText.Text = LocalizationService.Get("PeopleModelRemoved"); UpdateModelControls(); }
+        try { _modelManager.RemoveInstalledModel(); _peopleModelInstalled = false; _peopleModelStatusKnown = true; PeopleModelProgress.Visibility = Visibility.Collapsed; PeopleScanStageText.Visibility = Visibility.Visible; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanReady"); PeopleScanProgressText.Text = ""; PeopleScanErrorText.Visibility = Visibility.Collapsed; StatusText.Text = LocalizationService.Get("PeopleModelRemoved"); UpdateModelControls(); }
         catch (Exception ex) { ShowPeopleScanError(ex, false); }
     }
 
@@ -3380,6 +3387,7 @@ public partial class MainWindow : Window
         DocumentScanButton.IsEnabled = false;
         ExifScanCancelButton.IsEnabled = true;
         PeopleModelProgress.Visibility = Visibility.Visible;
+        PeopleScanProgressText.Visibility = Visibility.Visible;
         PeopleModelProgress.IsIndeterminate = false;
         PeopleModelProgress.Value = 0;
         PeopleScanStageText.Text = LocalizationService.Get("ExifScanning");

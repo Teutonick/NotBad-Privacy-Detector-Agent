@@ -431,10 +431,10 @@
                 <CheckBox x:Name="PeopleImagesScopeCheckBox" Content="{local:Loc MediaScopeImages}" IsChecked="True" Checked="PeopleScope_Changed" Unchecked="PeopleScope_Changed" Margin="0,0,16,0" ToolTip="{local:Loc PeopleScopeImagesHelp}"/>
                 <CheckBox x:Name="PeopleVideosScopeCheckBox" Content="{local:Loc MediaScopeVideos}" Checked="PeopleScope_Changed" Unchecked="PeopleScope_Changed" ToolTip="{local:Loc PeopleScopeVideosHelp}"/>
               </StackPanel>
-              <TextBlock x:Name="PeopleScanStatsText" Text="{local:Loc PeopleScanNotRun}" Style="{StaticResource MutedText}" Margin="0,8,0,0"/>
-              <TextBlock x:Name="PeopleScanStageText" Text="{local:Loc PeopleScanReady}" Style="{StaticResource MutedText}" Margin="0,3,0,0"/>
+              <TextBlock x:Name="PeopleScanStatsText" Text="{local:Loc PeopleScanNotRun}" Style="{StaticResource MutedText}" Margin="0,8,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+              <TextBlock x:Name="PeopleScanStageText" Text="{local:Loc PeopleScanReady}" Style="{StaticResource MutedText}" Margin="0,3,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
               <ProgressBar x:Name="PeopleModelProgress" Minimum="0" Maximum="1" Height="8" Margin="0,8,0,0" Visibility="Collapsed"/>
-              <TextBlock x:Name="PeopleScanProgressText" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
+              <TextBlock x:Name="PeopleScanProgressText" Style="{StaticResource MutedText}" Margin="0,4,0,0" Visibility="Collapsed"/>
               <TextBlock x:Name="PeopleScanErrorText" Foreground="#FF9F0A" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,4,0,0"/>
               <WrapPanel Margin="0,10,0,0">
                 <Button x:Name="DownloadPeopleModelButton" Style="{StaticResource PrimaryButton}" Click="DownloadPeopleModel_Click" Content="{local:Loc DownloadModel}" Padding="12,8" ToolTip="{local:Loc PeopleScanHelp}" Margin="0,0,6,6"/>
@@ -450,9 +450,9 @@
                 <CheckBox x:Name="NsfwImagesScopeCheckBox" Content="{local:Loc NsfwScopeImages}" IsChecked="True" Checked="NsfwScope_Changed" Unchecked="NsfwScope_Changed" Margin="0,0,16,0" ToolTip="{local:Loc NsfwScopeImagesHelp}"/>
                 <CheckBox x:Name="NsfwVideosScopeCheckBox" Content="{local:Loc NsfwScopeVideos}" Checked="NsfwScope_Changed" Unchecked="NsfwScope_Changed" ToolTip="{local:Loc NsfwScopeVideosHelp}"/>
               </StackPanel>
-              <TextBlock x:Name="NsfwScanStageText" Text="{local:Loc NsfwScanReady}" Style="{StaticResource MutedText}" Margin="0,6,0,0"/>
+              <TextBlock x:Name="NsfwScanStageText" Text="{local:Loc NsfwScanReady}" Style="{StaticResource MutedText}" Margin="0,6,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
               <ProgressBar x:Name="NsfwScanProgress" Minimum="0" Maximum="1" Height="8" Margin="0,8,0,0" Visibility="Collapsed"/>
-              <TextBlock x:Name="NsfwScanProgressText" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
+              <TextBlock x:Name="NsfwScanProgressText" Style="{StaticResource MutedText}" Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
               <TextBlock x:Name="NsfwScanErrorText" Foreground="#FF9F0A" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,4,0,0"/>
               <Grid Margin="0,10,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
