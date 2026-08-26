@@ -6,7 +6,7 @@
 
 > **Find what you forgot — before someone else does.**
 
-## Five true-to-life reasons to run NotBad
+## Five true-to-life reasons to run NotBad Privacy Detector
 
 1. **“What are you handing over with the laptop?”** — before a sale, expose the documents, photos, metadata and secrets that can outlive a normal cleanup.
 2. **“The pre-exit audit.”** — before returning a work computer, see in one run which personal files, account traces and activity footprints are still there.
