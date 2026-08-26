@@ -2073,6 +2073,8 @@ public partial class MainWindow : Window
         _mediaFilterCts = loadSource;
         var token = loadSource.Token;
         var filter = (MediaPeopleFilter?.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        var includeMediaImages = MediaImagesFilterCheckBox?.IsChecked == true;
+        var includeMediaVideos = MediaVideosFilterCheckBox?.IsChecked == true;
         var sizeStep = MediaSizeSlider is not null ? (int)MediaSizeSlider.Value : 0;
         var ageStep = MediaAgeSlider is not null ? (int)MediaAgeSlider.Value : 0;
         var resolutionStep = MediaResolutionSlider is not null ? (int)MediaResolutionSlider.Value : 0;
@@ -2101,6 +2103,8 @@ public partial class MainWindow : Window
                     if (!FindingFilter.MatchesResolution(originalDimensions, resolutionStep)) continue;
                     var hasResult = PeopleScanMetadata.TryParse(finding.MetadataJson, out var result);
                     var isDoc = DocumentDetectionResult.TryParse(finding.MetadataJson, out var docResult) && docResult!.IsDocument;
+                    var matchesMediaScope = MediaScope.Matches(finding.Category, includeMediaImages, includeMediaVideos);
+                    var scopeSensitive = MediaCategoryFilter.UsesTypeScope(filter);
                     if (hasResult)
                     {
                         records++;
@@ -2110,8 +2114,6 @@ public partial class MainWindow : Window
                     }
                     var matches = filter switch
                     {
-                        "Images" => finding.Category == "Images",
-                        "Videos" => finding.Category == "Video",
                         "AllMedia" => finding.Category is "Images" or "Video",
                         "GeoExif" => ExifMetadataResult.TryParse(finding.MetadataJson, out var exif) && exif!.DisclosedFields.Count > 0,
                         "GpsOnly" => ExifMetadataResult.TryParse(finding.MetadataJson, out var exif) && exif!.HasGeolocation,
@@ -2123,6 +2125,7 @@ public partial class MainWindow : Window
                         "Unscanned" => !hasResult,
                         _ => true
                     };
+                    if (scopeSensitive && !matchesMediaScope) matches = false;
                     if (matches) filtered.Add(finding);
                 }
                 return (Filtered: filtered.OrderByDescending(PrivacyRadarRanking.Score).ThenByDescending(x => x.ModifiedAt ?? DateTime.MinValue).ToArray(), Records: records, People: people, NoPeople: noPeople, Errors: errors);
@@ -2212,7 +2215,11 @@ public partial class MainWindow : Window
         DownloadPeopleModelButton.IsEnabled = !modelBusy && _activeMediaTaskCount == 0;
         PeopleScanButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
         PeopleScanButton.Content = LocalizationService.Get(HasPendingPeopleScanWork() ? "ContinuePeopleScan" : "SearchPeople");
-        PeopleScanButton.IsEnabled = installed && !modelBusy && !peopleBusy;
+        var hasPeopleScope = PeopleImagesScopeCheckBox?.IsChecked == true || PeopleVideosScopeCheckBox?.IsChecked == true;
+        PeopleScanButton.IsEnabled = installed && !modelBusy && !peopleBusy && hasPeopleScope;
+        var canChangePeopleScope = !peopleBusy && !_peopleScanState.IsPaused;
+        if (PeopleImagesScopeCheckBox is not null) PeopleImagesScopeCheckBox.IsEnabled = canChangePeopleScope;
+        if (PeopleVideosScopeCheckBox is not null) PeopleVideosScopeCheckBox.IsEnabled = canChangePeopleScope;
         RemovePeopleModelButton.IsEnabled = _modelManager.HasModelFiles && !modelBusy && !peopleBusy && _activeMediaTaskCount == 0;
         PeopleScanPauseButton.IsEnabled = peopleBusy;
         PeopleScanCancelButton.IsEnabled = modelBusy || peopleBusy || _peopleScanState.IsPaused;
@@ -2360,7 +2367,7 @@ public partial class MainWindow : Window
         var resuming = _imageSafetyScanState.IsPaused && _imageSafetyScanImages.Length > 0;
         var sourceImages = resuming
             ? _imageSafetyScanImages
-            : _mediaFindings.Where(x => NsfwMediaScope.Matches(x.Category, NsfwImagesScopeCheckBox.IsChecked == true, NsfwVideosScopeCheckBox.IsChecked == true)).ToArray();
+            : _mediaFindings.Where(x => MediaScope.Matches(x.Category, NsfwImagesScopeCheckBox.IsChecked == true, NsfwVideosScopeCheckBox.IsChecked == true)).ToArray();
         var images = await Task.Run(() => sourceImages.Where(x => File.Exists(x.Path)).ToArray());
         if (images.Length == 0)
         {
@@ -2421,6 +2428,11 @@ public partial class MainWindow : Window
         if (IsInitialized) UpdateModelControls();
     }
 
+    void PeopleScope_Changed(object sender, RoutedEventArgs e)
+    {
+        if (IsInitialized) UpdateModelControls();
+    }
+
     async Task ApplyPersistedImageSafetyResultsAsync(IEnumerable<Finding> images)
     {
         var restored = await Task.Run(() => images.Select(f => (Finding: f, Result: _imageSafetyRepository.Get(f.Path))).Where(x => x.Result?.Status == ImageSafetyScanStatus.Completed).ToArray());
@@ -2473,7 +2485,10 @@ public partial class MainWindow : Window
         ResetPeopleOperationMessage(); PeopleModelProgress.Visibility = Visibility.Visible; PeopleModelProgress.IsIndeterminate = true; PeopleScanStageText.Text = LocalizationService.Get("MediaScanPreparing");
         StatusText.Text = LocalizationService.Get("MediaScanPreparing");
         await Task.Yield();
-        var sourceImages = _peopleScanImages.Length > 0 ? _peopleScanImages : _mediaFindings.ToArray();
+        var resuming = _peopleScanState.IsPaused && _peopleScanImages.Length > 0;
+        var sourceImages = resuming
+            ? _peopleScanImages
+            : _mediaFindings.Where(x => MediaScope.Matches(x.Category, PeopleImagesScopeCheckBox.IsChecked == true, PeopleVideosScopeCheckBox.IsChecked == true)).ToArray();
         var images = await Task.Run(() => sourceImages.Where(x => File.Exists(x.Path)).ToArray());
         if (images.Length == 0)
         {
@@ -2686,6 +2701,8 @@ public partial class MainWindow : Window
     void ResetMediaFilters_Click(object sender, RoutedEventArgs e)
     {
         MediaPeopleFilter.SelectedIndex = 0;
+        MediaImagesFilterCheckBox.IsChecked = true;
+        MediaVideosFilterCheckBox.IsChecked = true;
         MediaSizeSlider.Value = 0;
         MediaAgeSlider.Value = 0;
         MediaResolutionSlider.Value = 0;
@@ -3450,6 +3467,12 @@ public partial class MainWindow : Window
     void ExifScanCancel_Click(object sender, RoutedEventArgs e) => RequestCancellation(_exifScanCts);
 
     void MediaFilter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        UpdatePeoplePresentation();
+    }
+
+    void MediaScopeFilter_Changed(object sender, RoutedEventArgs e)
     {
         if (!IsInitialized) return;
         UpdatePeoplePresentation();

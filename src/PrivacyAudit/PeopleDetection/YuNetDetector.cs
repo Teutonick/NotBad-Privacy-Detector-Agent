@@ -37,6 +37,20 @@ public sealed class YuNetDetector : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         cancellationToken.ThrowIfCancellationRequested();
         using var image = SixLabors.ImageSharp.Image.Load<Rgb24>(new DecoderOptions { MaxFrames = 1 }, imagePath);
+        return DetectImage(image, cancellationToken);
+    }
+
+    public FaceDetectionResult Detect(Image<Rgb24> image, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(image);
+        cancellationToken.ThrowIfCancellationRequested();
+        using var copy = image.Clone();
+        return DetectImage(copy, cancellationToken);
+    }
+
+    FaceDetectionResult DetectImage(Image<Rgb24> image, CancellationToken cancellationToken)
+    {
         image.Mutate(context => context.Resize(_inputWidth, _inputHeight));
         var tensor = ToBgrTensor(image, cancellationToken);
         lock (_gate)

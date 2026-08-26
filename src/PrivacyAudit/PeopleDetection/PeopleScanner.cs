@@ -4,9 +4,9 @@ namespace PrivacyAudit.PeopleDetection;
 
 public sealed class PeopleScanner(ModelManager modelManager, PeopleScanRepository repository)
 {
-    public async Task<IReadOnlyList<PeopleScanResult>> ScanAsync(IEnumerable<Finding> imageFindings, IProgress<PeopleScanProgress>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<PeopleScanResult>> ScanAsync(IEnumerable<Finding> mediaFindings, IProgress<PeopleScanProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        var files = imageFindings.Where(x => x.Category == "Images").ToArray();
+        var files = mediaFindings.Where(x => x.Category is "Images" or "Video").ToArray();
         // GetVerifiedModelPath() checks SHA-256 synchronously; throws if not InstalledVerified.
         // Scanners must not contain any network logic — they only consume local verified paths.
         var modelPath = modelManager.GetVerifiedModelPath();
@@ -38,22 +38,42 @@ public sealed class PeopleScanner(ModelManager modelManager, PeopleScanRepositor
             PeopleScanResult result;
             try
             {
-                var detection = await Task.Run(() => detector.Detect(finding.Path, cancellationToken), cancellationToken);
+                var detection = finding.Category == "Video"
+                    ? await DetectVideoAsync(detector, finding.Path, cancellationToken)
+                    : await Task.Run(() => detector.Detect(finding.Path, cancellationToken), cancellationToken);
                 result = new(finding.Path, PeopleScanStatus.Completed, detection.FaceCount > 0, detection.FaceCount, detection.MaxConfidence, modelManager.Manifest.ModelVersion, DateTime.UtcNow, file.Length, file.LastWriteTime);
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
                 modelManager.LogPeopleScanError(finding.Path, ex);
-                var message = ex is SixLabors.ImageSharp.UnknownImageFormatException or SixLabors.ImageSharp.InvalidImageContentException or ArgumentException
-                    ? "The image could not be decoded. The format may be unsupported or the file may be damaged."
-                    : ex.Message;
+                var message = ex switch
+                {
+                    VideoDecodeException video => video.ToString(),
+                    SixLabors.ImageSharp.UnknownImageFormatException or SixLabors.ImageSharp.InvalidImageContentException or ArgumentException => "The image could not be decoded. The format may be unsupported or the file may be damaged.",
+                    _ => ex.Message
+                };
                 result = Error(finding.Path, file.Length, file.LastWriteTime, modelManager.Manifest.ModelVersion, message);
             }
             await Task.Run(() => repository.Upsert(result), cancellationToken); results.Add(result); completed++; if (result.PeopleDetected) people++; if (result.Status == PeopleScanStatus.Error) errors++;
             progress?.Report(new(finding.Path, completed, files.Length, people, errors, result.Error));
         }
         return results;
+    }
+
+    static async Task<FaceDetectionResult> DetectVideoAsync(YuNetDetector detector, string path, CancellationToken token)
+    {
+        using var samples = await VideoFrameSampler.SampleForClassificationAsync(path, token);
+        var maxFaces = 0;
+        var maxConfidence = 0d;
+        foreach (var frame in samples.Frames)
+        {
+            token.ThrowIfCancellationRequested();
+            var detection = detector.Detect(frame, token);
+            maxFaces = Math.Max(maxFaces, detection.FaceCount);
+            maxConfidence = Math.Max(maxConfidence, detection.MaxConfidence);
+        }
+        return new(maxFaces, maxConfidence);
     }
 
     static PeopleScanResult Error(string path, long size, DateTime modified, string modelVersion, string error) => new(path, PeopleScanStatus.Error, false, 0, 0, modelVersion, DateTime.UtcNow, size, modified, error);

@@ -393,7 +393,7 @@
               <StackPanel Grid.Column="0" Margin="0,0,12,0">
                 <TextBlock Text="{local:Loc LegendSectionMediaFilters}" FontWeight="SemiBold" FontSize="11" Foreground="#929AAA" Margin="0,0,0,4"/>
                 <TextBlock TextWrapping="Wrap" FontSize="10.5" LineHeight="16" Foreground="#BAC5D6" Margin="0,0,0,8">
-                  <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc MediaFilterAllImages}"/><Run Text=":"/></Bold> <Run Text="{local:Loc MediaFilterHelp}"/><LineBreak/>
+                  <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc MediaFilterAllMedia}"/><Run Text=":"/></Bold> <Run Text="{local:Loc MediaFilterHelp}"/><LineBreak/>
                   <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc FilterSize}"/><Run Text=":"/></Bold> <Run Text="{local:Loc FilterSizeHelp}"/><LineBreak/>
                    <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc FilterAge}"/><Run Text=":"/></Bold> <Run Text="{local:Loc FilterAgeHelp}"/><LineBreak/>
                    <Bold Foreground="#FFFFFF"><Run Text="• "/><Run Text="{local:Loc MediaResolution}"/><Run Text=":"/></Bold> <Run Text="{local:Loc MediaResolutionFilterHelp}"/><LineBreak/>
@@ -427,6 +427,10 @@
             <StackPanel>
               <TextBlock Text="{local:Loc PeopleScanTitle}" FontWeight="SemiBold"/>
               <TextBlock Text="{local:Loc PeopleScanDescription}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+              <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                <CheckBox x:Name="PeopleImagesScopeCheckBox" Content="{local:Loc MediaScopeImages}" IsChecked="True" Checked="PeopleScope_Changed" Unchecked="PeopleScope_Changed" Margin="0,0,16,0" ToolTip="{local:Loc PeopleScopeImagesHelp}"/>
+                <CheckBox x:Name="PeopleVideosScopeCheckBox" Content="{local:Loc MediaScopeVideos}" Checked="PeopleScope_Changed" Unchecked="PeopleScope_Changed" ToolTip="{local:Loc PeopleScopeVideosHelp}"/>
+              </StackPanel>
               <TextBlock x:Name="PeopleScanStatsText" Text="{local:Loc PeopleScanNotRun}" Style="{StaticResource MutedText}" Margin="0,8,0,0"/>
               <TextBlock x:Name="PeopleScanStageText" Text="{local:Loc PeopleScanReady}" Style="{StaticResource MutedText}" Margin="0,3,0,0"/>
               <ProgressBar x:Name="PeopleModelProgress" Minimum="0" Maximum="1" Height="8" Margin="0,8,0,0" Visibility="Collapsed"/>
@@ -505,18 +509,20 @@
         <TextBlock x:Name="MediaCountText" DockPanel.Dock="Right" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="4,0,0,8"/>
         <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
           <ComboBox x:Name="MediaPeopleFilter" Width="180" SelectionChanged="MediaFilter_Changed" ToolTip="{local:Loc MediaFilterHelp}" Margin="0,0,8,8">
-            <ComboBoxItem Content="{local:Loc MediaFilterAllImages}" Tag="Images" IsSelected="True"/>
-            <ComboBoxItem Content="{local:Loc MediaFilterAllVideos}" Tag="Videos"/>
-            <ComboBoxItem Content="{local:Loc MediaFilterAllMedia}" Tag="AllMedia"/>
+            <ComboBoxItem Content="{local:Loc MediaFilterAllMedia}" Tag="AllMedia" IsSelected="True"/>
             <ComboBoxItem Content="{local:Loc MediaFilterGeoExif}" Tag="GeoExif"/>
             <ComboBoxItem Content="{local:Loc MediaFilterGps}" Tag="GpsOnly"/>
             <ComboBoxItem Content="{local:Loc MediaFilterDocuments}" Tag="Documents"/>
-            <ComboBoxItem Content="{local:Loc MediaFilterNsfw}" Tag="NSFW"/>
             <ComboBoxItem Content="{local:Loc MediaFilterPeople}" Tag="People"/>
+            <ComboBoxItem Content="{local:Loc MediaFilterNsfw}" Tag="NSFW"/>
             <ComboBoxItem Content="{local:Loc MediaFilterNoPeople}" Tag="NoPeople"/>
             <ComboBoxItem Content="{local:Loc MediaFilterErrors}" Tag="Errors"/>
             <ComboBoxItem Content="{local:Loc MediaFilterUnscanned}" Tag="Unscanned"/>
           </ComboBox>
+          <StackPanel Orientation="Horizontal" Margin="0,0,10,8" VerticalAlignment="Center">
+            <CheckBox x:Name="MediaImagesFilterCheckBox" Content="{local:Loc MediaScopeImages}" IsChecked="True" Checked="MediaScopeFilter_Changed" Unchecked="MediaScopeFilter_Changed" Margin="0,0,12,0" ToolTip="{local:Loc MediaScopeImagesFilterHelp}"/>
+            <CheckBox x:Name="MediaVideosFilterCheckBox" Content="{local:Loc MediaScopeVideos}" IsChecked="True" Checked="MediaScopeFilter_Changed" Unchecked="MediaScopeFilter_Changed" ToolTip="{local:Loc MediaScopeVideosFilterHelp}"/>
+          </StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,0,10,8" VerticalAlignment="Center">
             <TextBlock Text="{local:Loc FilterSize}" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="2,0,6,0"/>
             <Slider x:Name="MediaSizeSlider" Minimum="0" Maximum="9" Value="0" Width="95" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="MediaFilter_SliderChanged" VerticalAlignment="Center" ToolTip="{local:Loc FilterSizeHelp}"/>

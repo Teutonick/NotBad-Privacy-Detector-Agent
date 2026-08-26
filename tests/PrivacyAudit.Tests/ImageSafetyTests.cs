@@ -15,6 +15,19 @@ public sealed class ImageSafetyTests
     public void NsfwScopeSelectsOnlyRequestedMedia(string category, bool images, bool videos, bool expected) =>
         Assert.Equal(expected, NsfwMediaScope.Matches(category, images, videos));
 
+    [Theory]
+    [InlineData("AllMedia", true)]
+    [InlineData("People", true)]
+    [InlineData("NSFW", true)]
+    [InlineData("NoPeople", true)]
+    [InlineData("Errors", true)]
+    [InlineData("Unscanned", true)]
+    [InlineData("GeoExif", false)]
+    [InlineData("GpsOnly", false)]
+    [InlineData("Documents", false)]
+    public void MediaCategoryDeclaresWhetherImageVideoScopeApplies(string category, bool expected) =>
+        Assert.Equal(expected, MediaCategoryFilter.UsesTypeScope(category));
+
     [Fact]
     public void ManifestPinsOptionalMitOnnxPackage()
     {

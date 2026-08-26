@@ -38,6 +38,13 @@ public sealed class StartupTests
             {
                 var app = new App(); app.InitializeComponent();
                 var window = new MainWindow(true);
+                var mediaFilter = Assert.IsType<ComboBox>(window.FindName("MediaPeopleFilter"));
+                Assert.Equal("AllMedia", Assert.IsType<ComboBoxItem>(mediaFilter.Items[0]).Tag);
+                Assert.Equal(0, mediaFilter.SelectedIndex);
+                Assert.True(Assert.IsType<CheckBox>(window.FindName("MediaImagesFilterCheckBox")).IsChecked);
+                Assert.True(Assert.IsType<CheckBox>(window.FindName("MediaVideosFilterCheckBox")).IsChecked);
+                Assert.True(Assert.IsType<CheckBox>(window.FindName("PeopleImagesScopeCheckBox")).IsChecked);
+                Assert.False(Assert.IsType<CheckBox>(window.FindName("PeopleVideosScopeCheckBox")).IsChecked);
                 var historyList = Assert.IsType<System.Windows.Controls.ItemsControl>(window.FindName("ApplicationHistoryList"));
                 historyList.ItemsSource = new[]
                 {

@@ -60,7 +60,7 @@ NotBad Privacy Detector Agent собирает эти следы вместе, �
 <p align="center">
   <img src="docs/assets/readme-media-people-search.png" alt="Поиск людей в NotBad Privacy Detector Agent" width="960">
 </p>
-<p align="center"><em>Поиск людей: находи лица на изображениях с помощью модели, которая работает локально на твоём компьютере.</em></p>
+<p align="center"><em>Поиск людей: находи лица в изображениях и ограниченной выборке кадров видео с помощью модели, которая работает локально на твоём компьютере.</em></p>
 
 <p align="center">
   <img src="docs/assets/readme-media-nsfw-search.png" alt="Локальный поиск NSFW в NotBad Privacy Detector Agent" width="960">

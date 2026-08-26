@@ -60,7 +60,7 @@ NotBad Privacy Detector Agent brings those traces together, explains the risk an
 <p align="center">
   <img src="docs/assets/readme-media-people-search.png" alt="NotBad Privacy Detector Agent people search" width="960">
 </p>
-<p align="center"><em>People search: detect faces in found images using a model that runs locally on your computer.</em></p>
+<p align="center"><em>People search: detect faces in images and bounded in-memory video frames using a model that runs locally on your computer.</em></p>
 
 <p align="center">
   <img src="docs/assets/readme-media-nsfw-search.png" alt="NotBad Privacy Detector Agent local NSFW search" width="960">
