@@ -2,20 +2,29 @@ using System.Collections.Concurrent;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
+using System.Windows.Media;
+using System.Windows.Threading;
 using PrivacyAudit.Core;
+using PrivacyAudit.PeopleDetection;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace PrivacyAudit;
 
 public sealed class AsyncThumbnail : System.Windows.Controls.Image
 {
-    static readonly SemaphoreSlim DecodeSlots = new(4);
+    static readonly SemaphoreSlim ImageDecodeSlots = new(4);
+    // Video decode is intentionally serialized: opening many Source Readers at once makes the
+    // gallery contend for disk, codecs and CPU and can starve the UI thread.
+    static readonly SemaphoreSlim VideoDecodeSlots = new(1);
     static readonly ConcurrentDictionary<string, WeakReference<BitmapSource>> Cache = new(StringComparer.OrdinalIgnoreCase);
+    static readonly ConcurrentDictionary<string, byte> FailedPreviews = new(StringComparer.OrdinalIgnoreCase);
     int _requestVersion;
     CancellationTokenSource? _loadCts;
+    DispatcherOperation? _queuedLoad;
 
     public AsyncThumbnail()
     {
-        Loaded += (_, _) => QueueLoad();
+        Loaded += (_, _) => ScheduleLoad();
         Unloaded += (_, _) => CancelLoad();
     }
 
@@ -30,29 +39,41 @@ public sealed class AsyncThumbnail : System.Windows.Controls.Image
     public string? Category { get => (string?)GetValue(CategoryProperty); set => SetValue(CategoryProperty, value); }
     public int DecodeWidth { get => (int)GetValue(DecodeWidthProperty); set => SetValue(DecodeWidthProperty, value); }
 
-    static void Changed(DependencyObject d, DependencyPropertyChangedEventArgs e) => ((AsyncThumbnail)d).QueueLoad();
+    static void Changed(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var thumbnail = (AsyncThumbnail)d;
+        if (thumbnail.IsLoaded) thumbnail.ScheduleLoad();
+    }
+
+    void ScheduleLoad()
+    {
+        _queuedLoad?.Abort();
+        _queuedLoad = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(QueueLoad));
+    }
 
     public static async Task PreloadAsync(IEnumerable<Finding> findings, int width, CancellationToken token)
     {
-        var paths = findings.Where(x => string.Equals(x.Category, "Images", StringComparison.OrdinalIgnoreCase))
-            .Select(x => x.Path).Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        var jobs = paths.Select(path => PreloadPathAsync(path, width, token)).ToArray();
+        var paths = findings.Where(x => string.Equals(x.Category, "Images", StringComparison.OrdinalIgnoreCase) || string.Equals(x.Category, "Video", StringComparison.OrdinalIgnoreCase))
+            .Select(x => (x.Path, x.Category)).Where(x => File.Exists(x.Path)).DistinctBy(x => x.Path, StringComparer.OrdinalIgnoreCase).ToArray();
+        var jobs = paths.Select(item => PreloadPathAsync(item.Path, width, item.Category, token)).ToArray();
         await Task.WhenAll(jobs);
     }
 
-    static async Task PreloadPathAsync(string path, int width, CancellationToken token)
+    static async Task PreloadPathAsync(string path, int width, string category, CancellationToken token)
     {
-        var key = $"{Math.Clamp(width, 32, 512)}|{path}";
-        if (Cache.TryGetValue(key, out var weak) && weak.TryGetTarget(out _)) return;
-        await DecodeSlots.WaitAsync(token);
+        var normalizedWidth = Math.Clamp(width, 32, 512);
+        var key = CacheKey(path, normalizedWidth, category);
+        if (FailedPreviews.ContainsKey(key) || Cache.TryGetValue(key, out var weak) && weak.TryGetTarget(out _)) return;
+        var slots = SlotsFor(category);
+        await slots.WaitAsync(token);
         try
         {
-            var bitmap = await Task.Run(() => Decode(path, width), token);
-            if (bitmap is not null) Cache[key] = new(bitmap);
+            var bitmap = await DecodeAsync(path, normalizedWidth, category, token);
+            if (bitmap is not null) Cache[key] = new(bitmap); else FailedPreviews.TryAdd(key, 0);
         }
         catch (OperationCanceledException) { throw; }
         catch { }
-        finally { DecodeSlots.Release(); }
+        finally { slots.Release(); }
     }
 
     async void QueueLoad()
@@ -63,48 +84,77 @@ public sealed class AsyncThumbnail : System.Windows.Controls.Image
         var version = ++_requestVersion;
         Source = null;
         var path = FilePath;
+        var category = Category;
         var width = Math.Clamp(DecodeWidth, 32, 512);
-        if (!string.Equals(Category, "Images", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
-        var key = $"{width}|{path}";
+        if ((!string.Equals(category, "Images", StringComparison.OrdinalIgnoreCase) && !string.Equals(category, "Video", StringComparison.OrdinalIgnoreCase)) || string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+        var key = CacheKey(path, width, category);
+        if (FailedPreviews.ContainsKey(key)) return;
         if (Cache.TryGetValue(key, out var weak) && weak.TryGetTarget(out var cached)) { Source = cached; return; }
 
         var entered = false;
+        var slots = SlotsFor(category);
         try
         {
-            await DecodeSlots.WaitAsync(token);
+            await slots.WaitAsync(token);
             entered = true;
-            var bitmap = await Task.Run(() => Decode(path, width), token);
+            var bitmap = await DecodeAsync(path, width, category, token);
             token.ThrowIfCancellationRequested();
-            if (bitmap is null) return;
+            if (bitmap is null) { FailedPreviews.TryAdd(key, 0); return; }
             Cache[key] = new(bitmap);
             if (version == _requestVersion && string.Equals(path, FilePath, StringComparison.OrdinalIgnoreCase)) Source = bitmap;
             if (Cache.Count > 2048) foreach (var item in Cache.Where(x => !x.Value.TryGetTarget(out _)).Take(512)) Cache.TryRemove(item.Key, out _);
         }
         catch (OperationCanceledException) { }
-        finally { if (entered) DecodeSlots.Release(); }
+        catch { /* A failed preview must never stop the UI or the audit. */ }
+        finally { if (entered) slots.Release(); }
     }
 
     void CancelLoad()
     {
+        _queuedLoad?.Abort();
+        _queuedLoad = null;
         _loadCts?.Cancel();
         _loadCts?.Dispose();
         _loadCts = null;
     }
 
-    static BitmapSource? Decode(string path, int width)
+    static async Task<BitmapSource?> DecodeAsync(string path, int width, string? category, CancellationToken token)
     {
         try
         {
-            var image = new BitmapImage();
-            image.BeginInit();
-            image.UriSource = new Uri(path);
-            image.CacheOption = BitmapCacheOption.OnLoad;
-            image.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-            image.DecodePixelWidth = width;
-            image.EndInit();
-            image.Freeze();
-            return image;
+            if (string.Equals(category, "Video", StringComparison.OrdinalIgnoreCase))
+            {
+                using var samples = await VideoFrameSampler.SamplePreviewAsync(path, token);
+                token.ThrowIfCancellationRequested();
+                var frame = samples.Frames.FirstOrDefault();
+                if (frame is null) return null;
+                var pixels = new byte[frame.Width * frame.Height * 3];
+                frame.CopyPixelDataTo(pixels);
+                var bitmap = BitmapSource.Create(frame.Width, frame.Height, 96, 96, PixelFormats.Rgb24, null, pixels, frame.Width * 3);
+                bitmap.Freeze();
+                return bitmap;
+            }
+            return await Task.Run(() => DecodeImage(path, width), token);
         }
+        catch (OperationCanceledException) { throw; }
         catch { return null; }
     }
+
+    static BitmapSource DecodeImage(string path, int width)
+    {
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.UriSource = new Uri(path);
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+        image.DecodePixelWidth = width;
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
+    static SemaphoreSlim SlotsFor(string? category) =>
+        string.Equals(category, "Video", StringComparison.OrdinalIgnoreCase) ? VideoDecodeSlots : ImageDecodeSlots;
+
+    static string CacheKey(string path, int width, string? category) => $"{category}|{width}|{path}";
 }

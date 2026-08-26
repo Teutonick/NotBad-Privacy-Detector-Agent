@@ -70,6 +70,14 @@ public sealed class ImageSafetyTests
     }
 
     [Fact]
+    public void VideoPreviewUsesExactlyOneBoundedFrame()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(1), VideoFrameSampler.SelectPreviewPosition(TimeSpan.FromSeconds(1.2)));
+        Assert.Equal(TimeSpan.FromSeconds(1), VideoFrameSampler.SelectPreviewPosition(TimeSpan.FromSeconds(30)));
+        Assert.Equal(TimeSpan.FromSeconds(1), VideoFrameSampler.SelectPreviewPosition(null));
+    }
+
+    [Fact]
     public void RepositoryReusesOnlyUnchangedImageAndMatchingModel()
     {
         var root = Path.Combine(Path.GetTempPath(), $"privacy-audit-safety-{Guid.NewGuid():N}"); Directory.CreateDirectory(root);

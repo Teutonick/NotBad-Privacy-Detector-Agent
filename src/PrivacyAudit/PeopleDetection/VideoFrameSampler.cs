@@ -18,7 +18,14 @@ public static class VideoFrameSampler
     public static Task<VideoFrameSamples> SampleForClassificationAsync(string path, CancellationToken token = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path); token.ThrowIfCancellationRequested();
-        return Task.Run(() => Sample(Path.GetFullPath(path), token), token);
+        return Task.Run(() => Sample(Path.GetFullPath(path), token, false), token);
+    }
+
+    /// <summary>Gets one in-memory representative frame for UI previews; no frame is written to disk.</summary>
+    public static Task<VideoFrameSamples> SamplePreviewAsync(string path, CancellationToken token = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path); token.ThrowIfCancellationRequested();
+        return Task.Run(() => Sample(Path.GetFullPath(path), token, true), token);
     }
 
     public static IReadOnlyList<TimeSpan> SelectSamplePositions(TimeSpan duration)
@@ -31,7 +38,11 @@ public static class VideoFrameSampler
 
     public static IReadOnlyList<TimeSpan> UnknownDurationPositions() => [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)];
 
-    static VideoFrameSamples Sample(string path, CancellationToken token)
+    public static TimeSpan SelectPreviewPosition(TimeSpan? duration) => duration is { } known
+        ? known.TotalSeconds > 1 ? Clamp(TimeSpan.FromSeconds(1), known) : Clamp(TimeSpan.FromTicks(known.Ticks / 2), known)
+        : TimeSpan.FromSeconds(1);
+
+    static VideoFrameSamples Sample(string path, CancellationToken token, bool preview)
     {
         var co = Native.CoInitializeEx(IntPtr.Zero, 0) >= 0; IMFSourceReader? reader = null; IMFAttributes? attributes = null; IMFMediaType? type = null;
         try
@@ -51,7 +62,9 @@ public static class VideoFrameSampler
             hr = reader.SetCurrentMediaType(FirstVideoStream, IntPtr.Zero, type);
             if (hr < 0) throw new VideoDecodeException(hr == unchecked((int)0xc00d5212) ? VideoDecodeCode.VideoNoDecoder : VideoDecodeCode.VideoUnsupported, "Windows has no compatible decoder for this video.", hr);
 
-            var duration = GetDuration(reader); var positions = duration is { } d ? SelectSamplePositions(d) : UnknownDurationPositions();
+            var duration = GetDuration(reader); var positions = preview
+                ? [SelectPreviewPosition(duration)]
+                : duration is { } known ? SelectSamplePositions(known) : UnknownDurationPositions();
             var frames = new List<Image<Rgb24>>(2); var diagnostics = new List<VideoFrameDiagnostic>(2);
             try
             {
