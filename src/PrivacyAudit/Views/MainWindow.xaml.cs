@@ -119,6 +119,9 @@ public partial class MainWindow : Window
     bool _imageSafetyModelInstalled;
     bool _imageSafetyModelStatusKnown;
     CancellationTokenSource? _imageSafetyScanCts;
+    Finding[] _imageSafetyScanImages = [];
+    readonly MediaScanOperationState _imageSafetyScanState = new();
+    bool _imageSafetyScanCancelRequested;
     PriorityAuditSession? _priorityAuditSession;
     bool _priorityReportTileMode;
     CancellationTokenSource? _priorityAuditCts;
@@ -257,6 +260,8 @@ public partial class MainWindow : Window
         if (DownloadPeopleModelButton is not null) DownloadPeopleModelButton.IsEnabled = enabled;
         if (RemovePeopleModelButton is not null) RemovePeopleModelButton.IsEnabled = enabled;
         if (NsfwScanButton is not null) NsfwScanButton.IsEnabled = enabled;
+        if (NsfwScanPauseButton is not null) NsfwScanPauseButton.IsEnabled = enabled;
+        if (NsfwScanCancelButton is not null) NsfwScanCancelButton.IsEnabled = enabled;
         if (DownloadNsfwModelButton is not null) DownloadNsfwModelButton.IsEnabled = enabled;
         if (RemoveNsfwModelButton is not null) RemoveNsfwModelButton.IsEnabled = enabled;
         if (ApplicationHistoryAnalyzeButton is not null) ApplicationHistoryAnalyzeButton.IsEnabled = enabled && _auditAvailableForApplicationHistory;
@@ -1171,7 +1176,7 @@ public partial class MainWindow : Window
 
         ResetPriorityAuditForNewAudit();
 
-        _cts = new(); _findingsResearchHintDismissed = false; _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; _peopleScanImages = []; _documentScanImages = []; _peopleScanState.Reset(); _documentScanState.Reset(); DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
+        _cts = new(); _findingsResearchHintDismissed = false; _findings.Clear(); _visibleFindings.Clear(); _mediaFindings.Clear(); _visibleMediaFindings.Clear(); _mediaDimensions.Clear(); _completedPeopleResults = 0; _peopleScanImages = []; _imageSafetyScanImages = []; _documentScanImages = []; _peopleScanState.Reset(); _imageSafetyScanState.Reset(); _documentScanState.Reset(); DashboardPanel.Children.Clear(); EmptyDashboard.Visibility = Visibility.Visible; _scanStart = DateTime.UtcNow;
         _auditContext = new(preset, roots, _scanStart, _scanStart, TimeSpan.Zero);
         _auditIdentity = null;
         ScanButton.IsEnabled = false; CancelButton.IsEnabled = true; CancelButton.Visibility = Visibility.Visible; Busy.Visibility = Visibility.Visible;
@@ -2202,11 +2207,15 @@ public partial class MainWindow : Window
         PeopleScanPauseButton.IsEnabled = peopleBusy;
         PeopleScanCancelButton.IsEnabled = modelBusy || peopleBusy || _peopleScanState.IsPaused;
         var safetyInstalled = _imageSafetyModelStatusKnown && _imageSafetyModelInstalled;
+        var safetyBusy = _imageSafetyScanState.IsRunning;
         DownloadNsfwModelButton.Visibility = safetyInstalled ? Visibility.Collapsed : Visibility.Visible;
-        DownloadNsfwModelButton.IsEnabled = !modelBusy && _imageSafetyScanCts is null && _activeMediaTaskCount == 0;
-        NsfwScanButton.IsEnabled = !modelBusy && _imageSafetyScanCts is null && _activeMediaTaskCount == 0;
-        NsfwScanCancelButton.IsEnabled = _imageSafetyScanCts is not null;
-        RemoveNsfwModelButton.IsEnabled = _imageSafetyModelManager.HasModelFiles && !modelBusy && _imageSafetyScanCts is null && _activeMediaTaskCount == 0;
+        DownloadNsfwModelButton.IsEnabled = !modelBusy && !safetyBusy && _activeMediaTaskCount == 0;
+        NsfwScanButton.Visibility = safetyInstalled ? Visibility.Visible : Visibility.Collapsed;
+        NsfwScanButton.Content = LocalizationService.Get(_imageSafetyScanState.IsPaused && _imageSafetyScanImages.Length > 0 ? "ContinueNsfwScan" : "SearchNsfw");
+        NsfwScanButton.IsEnabled = safetyInstalled && !modelBusy && !safetyBusy;
+        NsfwScanPauseButton.IsEnabled = safetyBusy;
+        NsfwScanCancelButton.IsEnabled = safetyBusy || _imageSafetyScanState.IsPaused;
+        RemoveNsfwModelButton.IsEnabled = _imageSafetyModelManager.HasModelFiles && !modelBusy && !safetyBusy && _activeMediaTaskCount == 0;
     }
 
     async Task RefreshPeopleModelAvailabilityAsync()
@@ -2332,8 +2341,12 @@ public partial class MainWindow : Window
         }
         var guard = TryAcquireHeavyTask(LocalizationService.Get("NsfwScanTitle"));
         if (guard is null) return;
-        var images = await Task.Run(() => _mediaFindings.Where(x => File.Exists(x.Path)).ToArray());
+        var sourceImages = _imageSafetyScanImages.Length > 0 ? _imageSafetyScanImages : _mediaFindings.ToArray();
+        var images = await Task.Run(() => sourceImages.Where(x => File.Exists(x.Path)).ToArray());
         if (images.Length == 0) { guard.Dispose(); StatusText.Text = LocalizationService.Get("NoImagesForNsfwScan"); return; }
+        _imageSafetyScanImages = images;
+        _imageSafetyScanState.Start();
+        _imageSafetyScanCancelRequested = false;
         _imageSafetyScanCts = new CancellationTokenSource(); UpdateModelControls();
         NsfwScanProgress.Visibility = Visibility.Visible; NsfwScanProgress.IsIndeterminate = false; NsfwScanProgress.Value = 0; NsfwScanErrorText.Visibility = Visibility.Collapsed;
         try
@@ -2357,10 +2370,17 @@ public partial class MainWindow : Window
             var nsfl = results.Count(x => x.Status == ImageSafetyScanStatus.Completed && x.PrimaryClass == ImageSafetyClass.NSFL);
             var errors = results.Count(x => x.Status == ImageSafetyScanStatus.Error);
             NsfwScanProgress.Value = 1; NsfwScanStageText.Text = string.Format(LocalizationService.Get("NsfwScanComplete"), results.Count, nsfw, nsfl, errors); StatusText.Text = NsfwScanStageText.Text;
+            _imageSafetyScanState.Complete();
         }
-        catch (OperationCanceledException) { await ApplyPersistedImageSafetyResultsAsync(images); NsfwScanStageText.Text = LocalizationService.Get("NsfwScanCanceled"); StatusText.Text = NsfwScanStageText.Text; }
-        catch (Exception ex) { NsfwScanErrorText.Text = ex.Message; NsfwScanErrorText.Visibility = Visibility.Visible; }
-        finally { guard.Dispose(); _imageSafetyScanCts.Dispose(); _imageSafetyScanCts = null; UpdateModelControls(); }
+        catch (OperationCanceledException)
+        {
+            await ApplyPersistedImageSafetyResultsAsync(images);
+            if (_imageSafetyScanCancelRequested) _imageSafetyScanState.Cancel(); else _imageSafetyScanState.Pause();
+            var key = _imageSafetyScanState.IsPaused ? "NsfwScanPaused" : "NsfwScanCanceled";
+            NsfwScanStageText.Text = LocalizationService.Get(key); StatusText.Text = NsfwScanStageText.Text;
+        }
+        catch (Exception ex) { _imageSafetyScanState.Cancel(); NsfwScanErrorText.Text = ex.Message; NsfwScanErrorText.Visibility = Visibility.Visible; }
+        finally { guard.Dispose(); _imageSafetyScanCts.Dispose(); _imageSafetyScanCts = null; if (_imageSafetyScanCancelRequested) _imageSafetyScanImages = []; UpdateModelControls(); }
     }
 
     async Task ApplyPersistedImageSafetyResultsAsync(IEnumerable<Finding> images)
@@ -2370,7 +2390,33 @@ public partial class MainWindow : Window
         SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
     }
 
-    void NsfwScanCancel_Click(object sender, RoutedEventArgs e) => RequestCancellation(_imageSafetyScanCts, showGlobalProgress: false);
+    void NsfwScanPause_Click(object sender, RoutedEventArgs e)
+    {
+        if (_imageSafetyScanCts is null) return;
+        _imageSafetyScanCancelRequested = false;
+        NsfwScanStageText.Text = LocalizationService.Get("NsfwScanPausing");
+        RequestCancellation(_imageSafetyScanCts, showGlobalProgress: false);
+    }
+
+    void NsfwScanCancel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_imageSafetyScanCts is not null)
+        {
+            _imageSafetyScanCancelRequested = true;
+            NsfwScanStageText.Text = LocalizationService.Get("NsfwScanCanceling");
+            RequestCancellation(_imageSafetyScanCts, showGlobalProgress: false);
+            return;
+        }
+
+        if (_imageSafetyScanState.IsPaused)
+        {
+            _imageSafetyScanState.Cancel();
+            _imageSafetyScanImages = [];
+            NsfwScanStageText.Text = LocalizationService.Get("NsfwScanCanceled");
+            StatusText.Text = NsfwScanStageText.Text;
+            UpdateModelControls();
+        }
+    }
 
     void RemoveNsfwModel_Click(object sender, RoutedEventArgs e)
     {

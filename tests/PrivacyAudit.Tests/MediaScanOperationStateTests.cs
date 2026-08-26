@@ -28,4 +28,23 @@ public sealed class MediaScanOperationStateTests
         Assert.False(people.IsRunning);
         Assert.False(documents.IsRunning);
     }
+
+    [Fact]
+    public void ImageSafetyScanCanPauseResumeAndCancelWithoutLosingItsLifecycle()
+    {
+        var imageSafety = new MediaScanOperationState();
+
+        imageSafety.Start();
+        imageSafety.Pause();
+
+        Assert.True(imageSafety.IsPaused);
+        Assert.True(imageSafety.CanStart);
+        Assert.True(imageSafety.CanCancel);
+
+        imageSafety.Start();
+        Assert.True(imageSafety.IsRunning);
+
+        imageSafety.Cancel();
+        Assert.Equal(MediaScanOperationStatus.Canceled, imageSafety.Status);
+    }
 }

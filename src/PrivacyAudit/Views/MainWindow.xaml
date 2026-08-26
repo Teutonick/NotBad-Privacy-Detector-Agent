@@ -449,9 +449,10 @@
               <Grid Margin="0,10,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <WrapPanel Grid.Column="0">
-                  <Button x:Name="DownloadNsfwModelButton" Click="DownloadNsfwModel_Click" Content="{local:Loc DownloadNsfwModel}" Padding="12,8" ToolTip="{local:Loc NsfwScanHelp}" Margin="0,0,6,6"/>
+                  <Button x:Name="DownloadNsfwModelButton" Style="{StaticResource PrimaryButton}" Click="DownloadNsfwModel_Click" Content="{local:Loc DownloadNsfwModel}" Padding="12,8" ToolTip="{local:Loc NsfwScanHelp}" Margin="0,0,6,6"/>
                   <Button x:Name="NsfwScanButton" Style="{StaticResource PrimaryButton}" Click="NsfwScan_Click" Content="{local:Loc SearchNsfw}" Padding="12,8" ToolTip="{local:Loc NsfwScanHelp}" Margin="0,0,6,6"/>
-                  <Button x:Name="NsfwScanCancelButton" Click="NsfwScanCancel_Click" Content="{local:Loc StopScan}" Padding="12,8" IsEnabled="False" ToolTip="{local:Loc NsfwScanCancelHelp}" Margin="0,0,6,6"/>
+                  <Button x:Name="NsfwScanPauseButton" Click="NsfwScanPause_Click" Content="{local:Loc PauseScan}" Padding="12,8" IsEnabled="False" ToolTip="{local:Loc NsfwScanPauseHelp}" Margin="0,0,6,6"/>
+                  <Button x:Name="NsfwScanCancelButton" Click="NsfwScanCancel_Click" Content="{local:Loc CancelScan}" Padding="12,8" IsEnabled="False" ToolTip="{local:Loc NsfwScanCancelHelp}" Margin="0,0,6,6"/>
                   <Button x:Name="RemoveNsfwModelButton" Click="RemoveNsfwModel_Click" Content="{local:Loc RemoveNsfwModel}" Padding="12,8" IsEnabled="False" ToolTip="{local:Loc RemoveNsfwModelHelp}" Margin="0,0,6,6"/>
                 </WrapPanel>
                 <ToggleButton x:Name="BlurNsfwThumbnailsButton" Grid.Column="1" Width="34" Height="34" HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip="{local:Loc BlurNsfwThumbnailsHelp}" Cursor="Hand" Foreground="#66758A" Background="Transparent" BorderThickness="0" Padding="0" Margin="8,0,0,6">

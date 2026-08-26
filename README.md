@@ -55,6 +55,11 @@ NotBad Privacy Detector Agent brings those traces together, explains the risk an
 <p align="center"><em>People search: detect faces in found images using a model that runs locally on your computer.</em></p>
 
 <p align="center">
+  <img src="docs/assets/readme-media-nsfw-search.png" alt="NotBad Privacy Detector Agent local NSFW search" width="960">
+</p>
+<p align="center"><em>Local NSFW search: classify found images on your computer with pause, continue and cancel controls—nothing is uploaded.</em></p>
+
+<p align="center">
   <img src="docs/assets/readme-media-document-scan.png" alt="NotBad Privacy Detector Agent document scan" width="960">
 </p>
 <p align="center"><em>Document scan: surface document photos and identity-document traces for deliberate review.</em></p>

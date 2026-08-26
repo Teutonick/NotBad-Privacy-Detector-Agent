@@ -55,6 +55,11 @@ NotBad Privacy Detector Agent собирает эти следы вместе, �
 <p align="center"><em>Поиск людей: находи лица на изображениях с помощью модели, которая работает локально на твоём компьютере.</em></p>
 
 <p align="center">
+  <img src="docs/assets/readme-media-nsfw-search.png" alt="Локальный поиск NSFW в NotBad Privacy Detector Agent" width="960">
+</p>
+<p align="center"><em>Локальный поиск NSFW: классифицируй найденные изображения на своём компьютере, приостанавливай и продолжай анализ — ничего не загружается в сеть.</em></p>
+
+<p align="center">
   <img src="docs/assets/readme-media-document-scan.png" alt="Сканирование документов в NotBad Privacy Detector Agent" width="960">
 </p>
 <p align="center"><em>Сканирование документов: выявляй фотографии документов и следы удостоверяющих документов для осознанной проверки.</em></p>
