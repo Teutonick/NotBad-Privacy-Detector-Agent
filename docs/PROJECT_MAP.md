@@ -56,6 +56,12 @@ PrivacyAudit.sln
 │   ├── ExifMetadataExtractor.cs   GPS decimal coordinates, camera make/model/serial, software, author, last saved by
 │   └── DocumentSimilarity.cs      TF-IDF vectorizer + Cosine similarity matching for text & Office documents
 │   ├── PeopleDetection/            local YuNet face detection, document photo analyzer, perceptual image similarity
+│   ├── ModelManager.cs            AV-transparent on-demand download, verification, status check & bounded removal
+│   ├── ModelManifest.cs           source-controlled model definitions, immutable pinned URLs, size caps, SHA-256 digests
+│   ├── ModelDownloadProgress.cs   download stages (Checking, Connecting, SizeCheck, Downloading, Verifying, Installing, Completed) & ModelStatus lifecycle
+│   ├── ModelIntegrityVerifier.cs   pure SHA-256 checksum verification against pinned manifest
+│   ├── Core/StartupPrerequisiteChecker.cs checks Windows Media Foundation without blocking photo/file auditing
+│   ├── Core/WindowPlacement.cs     DPI-independent initial centering/top-left fallback inside the work area
 │   ├── DocumentDetector.cs        strict paper/text-band/geometry evidence; YuNet face only corroborates an ID document
 │   ├── ImageSimilarity.cs         perceptual dHash (9x8) & aHash (8x8) difference matching without neural networks
 │   ├── YuNetDetector.cs           on-device ONNX face detector
@@ -63,7 +69,7 @@ PrivacyAudit.sln
 │   ├── ImageSafetyScanner.cs      photo/video scan, unchanged-file cache, progress and cancellation
 │   ├── VideoFrameSampler.cs       bounded IMFSourceReader seek/decode: one or two memory-only RGB frames
 │   ├── ImageSafetyRepository.cs   SQLite persistence for all three scores
-│   └── PeopleScanner.cs           local media scanner coordinator
+│   ├── PeopleScanner.cs           local media scanner coordinator
 │   ├── Scanners/                   independent scanner modules (Filesystem, Windows)
 │   └── Storage/                    local SQLite persistence & snapshots
 │   └── AppDataCleanupService.cs   scoped cleanup that rejects foreign roots and reparse traversal

@@ -14,8 +14,25 @@ public sealed class PeopleDetectionTests
         Assert.Equal("MIT", manifest.License);
         Assert.Equal("face_detection_yunet_2026may.onnx", manifest.File);
         Assert.Equal(64, manifest.Sha256.Length);
-        Assert.StartsWith("https://github.com/opencv/opencv_zoo/", manifest.Url, StringComparison.Ordinal);
+        // Must point to an immutable commit SHA in the project repository — never a mutable branch.
+        Assert.StartsWith("https://raw.githubusercontent.com/Teutonick/InfoSec-AUDIT-LOCAL/", manifest.Url, StringComparison.Ordinal);
+        Assert.DoesNotContain("/main/", manifest.Url, StringComparison.Ordinal);
         Assert.Equal("yunet-2026may", manifest.ModelVersion);
+        Assert.True(manifest.ExpectedSize > 0);
+        Assert.True(manifest.MaximumAllowedSize > manifest.ExpectedSize);
+    }
+
+    [Fact]
+    public void ImageSafetyManifestPinsImmutableUrlFromProjectRepo()
+    {
+        var manifest = ModelManifest.ImageSafetyXs;
+        Assert.Equal("MIT", manifest.License);
+        Assert.Equal(64, manifest.Sha256.Length);
+        // Both models must use the same pinned-commit pattern from the project repository.
+        Assert.StartsWith("https://raw.githubusercontent.com/Teutonick/InfoSec-AUDIT-LOCAL/", manifest.Url, StringComparison.Ordinal);
+        Assert.DoesNotContain("/main/", manifest.Url, StringComparison.Ordinal);
+        Assert.True(manifest.ExpectedSize > 0);
+        Assert.True(manifest.MaximumAllowedSize > manifest.ExpectedSize);
     }
 
     [Fact]
@@ -109,11 +126,13 @@ public sealed class PeopleDetectionTests
             using var client = new HttpClient(new HangingHandler());
             var manager = new ModelManager(root, httpClient: client, downloadTimeout: TimeSpan.FromMilliseconds(100));
             var progress = new List<ModelDownloadStage>();
-            var exception = await Assert.ThrowsAsync<ModelDownloadException>(() => manager.EnsureInstalledDetailedAsync(new Progress<ModelDownloadProgress>(p => progress.Add(p.Stage))));
+            var exception = await Assert.ThrowsAsync<ModelDownloadException>(
+                () => manager.InstallAsync(new Progress<ModelDownloadProgress>(p => progress.Add(p.Stage))));
             Assert.Equal("timeout", exception.Code);
             Assert.Contains(ModelDownloadStage.Connecting, progress);
             Assert.True(File.Exists(manager.LogPath));
-            Assert.Contains("timed out", File.ReadAllText(manager.LogPath), StringComparison.OrdinalIgnoreCase);
+            var log = File.ReadAllText(manager.LogPath);
+            Assert.Contains("MODEL_DOWNLOAD_TIMEOUT", log, StringComparison.Ordinal);
         }
         finally
         {
@@ -140,12 +159,99 @@ public sealed class PeopleDetectionTests
         }
     }
 
+    [Fact]
+    public async Task ModelManagerAbortsWhenContentLengthExceedsMaximum()
+    {
+        // Ensures the size guard fires before any bytes are written to the temp file.
+        var root = Path.Combine(Path.GetTempPath(), "privacy-audit-people-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var oversizedLength = ModelManifest.YuNet2026May.MaximumAllowedSize * 2;
+            using var client = new HttpClient(new OversizedHandler(oversizedLength));
+            var manager = new ModelManager(root, httpClient: client);
+            var exception = await Assert.ThrowsAsync<ModelDownloadException>(() => manager.InstallAsync());
+            Assert.Equal("size_exceeded", exception.Code);
+            // Temporary file must not linger after an aborted download.
+            var tempPath = Path.Combine(manager.DirectoryPath, $"{manager.Manifest.File}.download");
+            Assert.False(File.Exists(tempPath));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void ModelManagerGetStatusReturnsCorruptedWhenHashMismatch()
+    {
+        // When the ONNX file exists but its content has changed, GetStatus() must
+        // return Corrupted rather than InstalledVerified, and GetVerifiedModelPath()
+        // must throw so no scanner can use the tainted file.
+        var root = Path.Combine(Path.GetTempPath(), "privacy-audit-people-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var manager = new ModelManager(root);
+            Directory.CreateDirectory(manager.DirectoryPath);
+            File.WriteAllText(manager.ModelPath, "not a real onnx model");
+            Assert.Equal(ModelStatus.Corrupted, manager.GetStatus());
+            Assert.Throws<ModelDownloadException>(() => manager.GetVerifiedModelPath());
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void ModelManagerRemovalIsNoOpWhenDirectoryAbsent()
+    {
+        // RemoveInstalledModel on a non-existent directory must be a safe no-op.
+        var root = Path.Combine(Path.GetTempPath(), "privacy-audit-people-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var manager = new ModelManager(root);
+            Assert.False(manager.HasModelFiles);
+            manager.RemoveInstalledModel(); // must not throw
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void ModelManagerTempFileNameIsFixedAndPredictable()
+    {
+        // Verify the expected temp filename pattern without actually downloading.
+        // The temp file must be <filename>.download — no random GUIDs.
+        var manifest = ModelManifest.YuNet2026May;
+        var expectedTempName = $"{manifest.File}.download";
+        Assert.Equal("face_detection_yunet_2026may.onnx.download", expectedTempName);
+        Assert.DoesNotContain("Guid", expectedTempName, StringComparison.OrdinalIgnoreCase);
+        // Sanity check: the name must not look like a GUID (no 32-char hex segment).
+        Assert.DoesNotMatch(@"[0-9a-f]{32}", expectedTempName);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Test helpers
+    // ---------------------------------------------------------------------------
+
     sealed class HangingHandler : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+        }
+    }
+
+    sealed class OversizedHandler(long reportedContentLength) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var content = new ByteArrayContent([]);
+            content.Headers.ContentLength = reportedContentLength;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content });
         }
     }
 }

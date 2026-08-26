@@ -36,7 +36,22 @@ public partial class App : System.Windows.Application
             }
         }
 
-        var window = new MainWindow(smokeTest);
+        MainWindow window;
+        try
+        {
+            window = new MainWindow(smokeTest);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.LogException(ex, "Main window initialization");
+            System.Windows.MessageBox.Show(
+                string.Format(LocalizationService.Get("StartupInitializationFailed"), CrashLogger.CrashLogPath),
+                LocalizationService.Get("StartupComponentsTitle"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(3);
+            return;
+        }
         MainWindow = window;
         if (smokeTest)
         {
@@ -47,6 +62,19 @@ public partial class App : System.Windows.Application
             return;
         }
         window.Show();
+        ShowStartupPrerequisiteWarnings(window);
+    }
+
+    static void ShowStartupPrerequisiteWarnings(Window owner)
+    {
+        foreach (var issue in StartupPrerequisiteChecker.Check())
+        {
+            System.Windows.MessageBox.Show(owner,
+                LocalizationService.Get(issue.MessageKey),
+                LocalizationService.Get(issue.TitleKey),
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)

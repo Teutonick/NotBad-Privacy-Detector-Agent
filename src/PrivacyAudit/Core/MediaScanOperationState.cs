@@ -24,4 +24,5 @@ public sealed class MediaScanOperationState
     public void Complete() => Status = MediaScanOperationStatus.Completed;
     public void Cancel() => Status = MediaScanOperationStatus.Canceled;
     public void Reset() => Status = MediaScanOperationStatus.Ready;
+    public void NoCandidates() => Status = MediaScanOperationStatus.Ready;
 }

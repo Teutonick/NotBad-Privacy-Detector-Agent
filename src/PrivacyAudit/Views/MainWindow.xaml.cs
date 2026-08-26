@@ -373,6 +373,13 @@ public partial class MainWindow : Window
 
     void MainWindow_SourceInitialized(object? sender, EventArgs e)
     {
+        var workArea = SystemParameters.WorkArea;
+        var initialWidth = double.IsNaN(Width) || Width <= 0 ? ActualWidth : Width;
+        var initialHeight = double.IsNaN(Height) || Height <= 0 ? ActualHeight : Height;
+        var position = WindowPlacement.InitialPosition(initialWidth, initialHeight,
+            new WindowArea(workArea.Left, workArea.Top, workArea.Width, workArea.Height));
+        Left = position.Left;
+        Top = position.Top;
         _windowSource = PresentationSource.FromVisual(this) as HwndSource;
         _windowSource?.AddHook(WindowMessageHook);
     }
@@ -2281,6 +2288,7 @@ public partial class MainWindow : Window
         e.Column.SortDirection = direction;
         RefreshFindingsPage(true);
     }
+
     async void DownloadPeopleModel_Click(object sender, RoutedEventArgs e)
     {
         if (_cts is not null) return;
@@ -2295,7 +2303,7 @@ public partial class MainWindow : Window
         try
         {
             StatusText.Text = LocalizationService.Get("PeopleModelDownload");
-            await _modelManager.EnsureInstalledDetailedAsync(new Progress<ModelDownloadProgress>(UpdateModelDownloadProgress), _cts.Token);
+            await _modelManager.InstallAsync(new Progress<ModelDownloadProgress>(UpdateModelDownloadProgress), _cts.Token);
             _peopleModelInstalled = _peopleModelStatusKnown = true;
             PeopleModelProgress.IsIndeterminate = false; PeopleModelProgress.Value = 1; PeopleScanStageText.Text = LocalizationService.Get("PeopleModelInstalled"); PeopleScanProgressText.Text = LocalizationService.Get("PeopleModelInstalledDescription"); StatusText.Text = LocalizationService.Get("PeopleModelInstalled");
         }
@@ -2324,7 +2332,7 @@ public partial class MainWindow : Window
                 if (p.Fraction is double fraction) NsfwScanProgress.Value = fraction;
                 NsfwScanProgressText.Text = p.TotalBytes is long total ? $"{Format.Bytes(p.BytesReceived)} / {Format.Bytes(total)}" : "";
             });
-            await _imageSafetyModelManager.EnsureInstalledDetailedAsync(progress, _cts.Token);
+            await _imageSafetyModelManager.InstallAsync(progress, _cts.Token);
             _imageSafetyModelInstalled = _imageSafetyModelStatusKnown = true;
             NsfwScanProgress.IsIndeterminate = false; NsfwScanProgress.Value = 1; NsfwScanStageText.Text = LocalizationService.Get("NsfwModelInstalled");
             StatusText.Text = LocalizationService.Get("NsfwModelInstalled");
@@ -2354,7 +2362,20 @@ public partial class MainWindow : Window
             ? _imageSafetyScanImages
             : _mediaFindings.Where(x => NsfwMediaScope.Matches(x.Category, NsfwImagesScopeCheckBox.IsChecked == true, NsfwVideosScopeCheckBox.IsChecked == true)).ToArray();
         var images = await Task.Run(() => sourceImages.Where(x => File.Exists(x.Path)).ToArray());
-        if (images.Length == 0) { guard.Dispose(); StatusText.Text = LocalizationService.Get("NoImagesForNsfwScan"); return; }
+        if (images.Length == 0)
+        {
+            guard.Dispose();
+            _imageSafetyScanImages = [];
+            _imageSafetyScanState.NoCandidates();
+            NsfwScanProgress.Visibility = Visibility.Collapsed;
+            NsfwScanProgress.IsIndeterminate = false;
+            NsfwScanProgress.Value = 0;
+            NsfwScanProgressText.Text = "";
+            NsfwScanStageText.Text = LocalizationService.Get("NsfwScanReady");
+            StatusText.Text = LocalizationService.Get("NoImagesForNsfwScan");
+            UpdateModelControls();
+            return;
+        }
         _imageSafetyScanImages = images;
         _imageSafetyScanState.Start();
         _imageSafetyScanCancelRequested = false;
@@ -2454,7 +2475,22 @@ public partial class MainWindow : Window
         await Task.Yield();
         var sourceImages = _peopleScanImages.Length > 0 ? _peopleScanImages : _mediaFindings.ToArray();
         var images = await Task.Run(() => sourceImages.Where(x => File.Exists(x.Path)).ToArray());
-        if (images.Length == 0) { guard.Dispose(); StatusText.Text = LocalizationService.Get("NoImagesForPeopleScan"); PeopleScanErrorText.Text = LocalizationService.Get("NoImagesForPeopleScan"); PeopleScanErrorText.Visibility = Visibility.Visible; return; }
+        if (images.Length == 0)
+        {
+            guard.Dispose();
+            _peopleScanImages = [];
+            _peopleScanState.NoCandidates();
+            PeopleModelProgress.Visibility = Visibility.Collapsed;
+            PeopleModelProgress.IsIndeterminate = false;
+            PeopleModelProgress.Value = 0;
+            PeopleScanProgressText.Text = "";
+            PeopleScanStageText.Text = LocalizationService.Get("PeopleScanReady");
+            StatusText.Text = LocalizationService.Get("NoImagesForPeopleScan");
+            PeopleScanErrorText.Text = LocalizationService.Get("NoImagesForPeopleScan");
+            PeopleScanErrorText.Visibility = Visibility.Visible;
+            UpdateModelControls();
+            return;
+        }
         try { if (!await _modelManager.IsInstalledAsync()) { guard.Dispose(); ShowPeopleScanError(new ModelDownloadException(LocalizationService.Get("PeopleModelRequired"), "model_missing")); return; } }
         catch (Exception ex) { guard.Dispose(); ShowPeopleScanError(ex); return; }
 
@@ -2558,7 +2594,7 @@ public partial class MainWindow : Window
             ModelDownloadStage.Connecting => LocalizationService.Get("PeopleScanConnecting"),
             ModelDownloadStage.Downloading => LocalizationService.Get("PeopleScanDownloading"),
             ModelDownloadStage.Verifying => LocalizationService.Get("PeopleScanVerifying"),
-            ModelDownloadStage.DownloadingLicense => LocalizationService.Get("PeopleScanDownloadingLicense"),
+            ModelDownloadStage.SizeCheck => LocalizationService.Get("PeopleScanSizeCheck"),
             ModelDownloadStage.Installing => LocalizationService.Get("PeopleScanInstalling"),
             ModelDownloadStage.Completed => LocalizationService.Get("PeopleScanCompleted"),
             _ => LocalizationService.Get("PeopleModelDownload")
@@ -3145,7 +3181,15 @@ public partial class MainWindow : Window
         if (images.Length == 0)
         {
             guard.Dispose();
+            _documentScanImages = [];
+            _documentScanState.NoCandidates();
+            DocumentScanProgress.Visibility = Visibility.Collapsed;
+            DocumentScanProgress.IsIndeterminate = false;
+            DocumentScanProgress.Value = 0;
+            DocumentScanProgressText.Text = "";
+            DocumentScanStageText.Text = LocalizationService.Get("DocumentScanReady");
             StatusText.Text = LocalizationService.Get("NoImagesForPeopleScan");
+            UpdateDocumentScanControls();
             return;
         }
 

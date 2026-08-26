@@ -7,9 +7,11 @@ public sealed class ImageSafetyScanner(ModelManager modelManager, ImageSafetyRep
     public async Task<IReadOnlyList<ImageSafetyScanResult>> ScanAsync(IEnumerable<Finding> findings, bool forceRescan = false, IProgress<ImageSafetyScanProgress>? progress = null, CancellationToken token = default)
     {
         var files = findings.Where(x => x.Category is "Images" or "Video").ToArray();
-        if (!await modelManager.IsInstalledAsync(token)) throw new ModelDownloadException("Image Safety model is not installed.", "model_missing");
+        // GetVerifiedModelPath() checks SHA-256 synchronously; throws if not InstalledVerified.
+        // Scanners must not contain any network logic — they only consume local verified paths.
+        var verifiedPath = modelManager.GetVerifiedModelPath();
         var results = new List<ImageSafetyScanResult>(files.Length); var nsfw = 0; var nsfl = 0; var errors = 0;
-        using var classifier = new ImageSafetyClassifier(modelManager.ModelPath);
+        using var classifier = new ImageSafetyClassifier(verifiedPath);
         foreach (var finding in files)
         {
             token.ThrowIfCancellationRequested(); var file = new FileInfo(finding.Path); ImageSafetyScanResult result;

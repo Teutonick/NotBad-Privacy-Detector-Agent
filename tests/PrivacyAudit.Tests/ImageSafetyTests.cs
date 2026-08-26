@@ -23,8 +23,10 @@ public sealed class ImageSafetyTests
         Assert.Equal("image-safety-classifier-xs.onnx", manifest.File);
         Assert.Equal("MIT", manifest.License);
         Assert.Equal("8C28C49D9075F3AD15EBDC2961F02D5B3F99BE944815B848B49C9F0E6F3FB689", manifest.Sha256);
-        Assert.Contains("/resolve/606ad3dfd6a023215e3ab0797040437cc365977b/", manifest.Url);
-        Assert.Contains("third_party/ImageSafety/image-safety-classifier-xs.onnx", manifest.MirrorUrl);
+        // Both models must serve from immutable pinned-commit URLs in the project repository.
+        Assert.StartsWith("https://raw.githubusercontent.com/Teutonick/InfoSec-AUDIT-LOCAL/", manifest.Url, StringComparison.Ordinal);
+        Assert.DoesNotContain("/main/", manifest.Url, StringComparison.Ordinal);
+        Assert.True(manifest.ExpectedSize > 0);
     }
 
     [Theory]
@@ -99,7 +101,8 @@ public sealed class ImageSafetyTests
         var root = Path.Combine(Path.GetTempPath(), $"privacy-audit-safety-package-{Guid.NewGuid():N}");
         var bytes = new byte[] { 1, 2, 3, 4, 5 };
         var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
-        var manifest = new ModelManifest("xs", "test", "MIT", "xs.onnx", "https://example.invalid/xs.onnx", digest, "", "ImageSafety", "XS", "test");
+        // New manifest signature: no LicenseUrl / MirrorUrl; ExpectedSize added.
+        var manifest = new ModelManifest("xs", "test", "MIT", "xs.onnx", "https://example.invalid/xs.onnx", digest, bytes.LongLength, "ImageSafety", "XS", "test");
         try
         {
             using var client = new HttpClient(new BytesHandler(bytes));
@@ -107,27 +110,9 @@ public sealed class ImageSafetyTests
             Directory.CreateDirectory(manager.DirectoryPath);
             var obsolete = Path.Combine(manager.DirectoryPath, "image-safety-classifier-m.onnx");
             await File.WriteAllTextAsync(obsolete, "old");
-            await manager.EnsureInstalledDetailedAsync();
+            await manager.InstallAsync();
             Assert.True(File.Exists(manager.ModelPath));
             Assert.False(File.Exists(obsolete));
-        }
-        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
-    }
-
-    [Fact]
-    public async Task DownloadRetriesRepositoryMirrorAfterUpstreamFailure()
-    {
-        var root = Path.Combine(Path.GetTempPath(), $"privacy-audit-safety-mirror-{Guid.NewGuid():N}");
-        var bytes = new byte[] { 9, 8, 7, 6 };
-        var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
-        var manifest = new ModelManifest("xs", "test", "MIT", "xs.onnx", "https://upstream.invalid/xs.onnx", digest, "", "ImageSafety", "XS", "test", "https://mirror.invalid/xs.onnx");
-        try
-        {
-            using var client = new HttpClient(new FailOnceHandler(bytes));
-            var manager = new ModelManager(root, manifest, client);
-            await manager.EnsureInstalledDetailedAsync();
-            Assert.True(File.Exists(manager.ModelPath));
-            Assert.Equal(bytes, await File.ReadAllBytesAsync(manager.ModelPath));
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
@@ -136,15 +121,5 @@ public sealed class ImageSafetyTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) });
-    }
-
-    sealed class FailOnceHandler(byte[] bytes) : HttpMessageHandler
-    {
-        int _calls;
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            if (Interlocked.Increment(ref _calls) == 1) throw new HttpRequestException("upstream unavailable");
-            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) });
-        }
     }
 }

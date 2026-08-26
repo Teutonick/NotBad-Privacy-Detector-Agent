@@ -8,6 +8,27 @@ using PrivacyAudit.Core;
 public sealed class StartupTests
 {
     [Fact]
+    public void OversizedWindowStartsAtWorkAreaTopLeft()
+    {
+        var result = WindowPlacement.InitialPosition(1380, 860, new WindowArea(0, 0, 1280, 720));
+        Assert.Equal(new WindowPosition(0, 0), result);
+    }
+
+    [Fact]
+    public void WindowThatFitsStartsCenteredInsideOffsetWorkArea()
+    {
+        var result = WindowPlacement.InitialPosition(1000, 700, new WindowArea(100, 40, 1600, 900));
+        Assert.Equal(new WindowPosition(400, 140), result);
+    }
+
+    [Fact]
+    public void StartupCheckExplainsMissingMediaFoundation()
+    {
+        var issues = StartupPrerequisiteChecker.CheckLibraries(name => name != "mfreadwrite.dll");
+        Assert.Contains(issues, x => x.Code == "media_foundation_missing");
+    }
+
+    [Fact]
     public void MainWindow_LoadsAndClosesWithoutUnhandledException()
     {
         Exception? failure = null;

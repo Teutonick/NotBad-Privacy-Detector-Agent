@@ -47,4 +47,18 @@ public sealed class MediaScanOperationStateTests
         imageSafety.Cancel();
         Assert.Equal(MediaScanOperationStatus.Canceled, imageSafety.Status);
     }
+
+    [Fact]
+    public void MissingCandidatesReturnPausedOperationToReady()
+    {
+        var state = new MediaScanOperationState();
+        state.Start();
+        state.Pause();
+
+        state.NoCandidates();
+
+        Assert.Equal(MediaScanOperationStatus.Ready, state.Status);
+        Assert.False(state.CanCancel);
+        Assert.True(state.CanStart);
+    }
 }

@@ -7,7 +7,9 @@ public sealed class PeopleScanner(ModelManager modelManager, PeopleScanRepositor
     public async Task<IReadOnlyList<PeopleScanResult>> ScanAsync(IEnumerable<Finding> imageFindings, IProgress<PeopleScanProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         var files = imageFindings.Where(x => x.Category == "Images").ToArray();
-        var modelPath = await modelManager.IsInstalledAsync(cancellationToken) ? modelManager.ModelPath : throw new InvalidOperationException("The YuNet model is not installed or failed integrity verification.");
+        // GetVerifiedModelPath() checks SHA-256 synchronously; throws if not InstalledVerified.
+        // Scanners must not contain any network logic — they only consume local verified paths.
+        var modelPath = modelManager.GetVerifiedModelPath();
         var results = new List<PeopleScanResult>(files.Length);
         var completed = 0;
         var people = 0;
