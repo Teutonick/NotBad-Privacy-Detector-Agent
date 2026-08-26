@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$RequireSignature
+)
 
 $ErrorActionPreference = 'Stop'
 $workspace = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -8,6 +10,10 @@ $cliRoot = Join-Path $workspace '.dotnet-cli'
 $publishRoot = Join-Path $workspace ('.tmp\publish-' + [Guid]::NewGuid().ToString('N'))
 $resultsRoot = Join-Path $workspace 'artifacts\test-results'
 $distRoot = Join-Path $workspace 'dist'
+
+if ($RequireSignature -and [string]::IsNullOrWhiteSpace($env:NOTBAD_SIGNING_CERT_THUMBPRINT)) {
+    throw 'Public release requires Authenticode signing. Set NOTBAD_SIGNING_CERT_THUMBPRINT to a trusted code-signing certificate in the Windows My store.'
+}
 
 New-Item -ItemType Directory -Force -Path $tempRoot, $cliRoot, $publishRoot, $resultsRoot, $distRoot | Out-Null
 $env:TEMP = $tempRoot
@@ -29,6 +35,19 @@ try {
 
     $publishedExe = Join-Path $publishRoot 'NotBadPrivacyDetectorAgent.exe'
     if (-not (Test-Path -LiteralPath $publishedExe)) { throw "Published executable is missing: $publishedExe" }
+
+    if ($env:NOTBAD_SIGNING_CERT_THUMBPRINT) {
+        & (Join-Path $PSScriptRoot 'sign-release.ps1') -FilePath $publishedExe
+        if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed.' }
+    }
+    elseif ($RequireSignature) {
+        throw 'Public release requires Authenticode signing. Set NOTBAD_SIGNING_CERT_THUMBPRINT to a trusted code-signing certificate in the Windows My store.'
+    }
+
+    $signature = Get-AuthenticodeSignature -LiteralPath $publishedExe
+    if ($RequireSignature -and ($signature.Status -ne 'Valid' -or $null -eq $signature.TimeStamperCertificate)) {
+        throw 'Public release requires a valid Authenticode signature with a trusted timestamp.'
+    }
 
     $process = Start-Process -FilePath $publishedExe -ArgumentList '--smoke-test' -PassThru -WindowStyle Hidden
     $launchedPid = $process.Id
@@ -71,6 +90,7 @@ try {
     Write-Host "VERIFIED: $target"
     Write-Host "SIZE: $($file.Length) bytes"
     Write-Host "SHA256: $($hash.Hash)"
+    Write-Host "AUTHENTICODE: $($signature.Status)"
 }
 finally {
     Pop-Location

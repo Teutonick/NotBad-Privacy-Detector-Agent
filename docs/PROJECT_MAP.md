@@ -76,7 +76,8 @@ PrivacyAudit.sln
 ├── tests/PrivacyAudit.Tests/       automated core, storage, UI-construction and lifecycle tests
 ├── third_party/                    checked-in YuNet and Image Safety XS mirrors with LICENSE.txt, SOURCE.md and SHA256SUMS.txt
 ├── scripts/verify.ps1              mandatory release verification
-├── scripts/package-release.ps1     verified versioned ZIP + legal/privacy/license documents
+├── scripts/sign-release.ps1        protected-store Authenticode SHA-256 signing, RFC 3161 timestamp and verification
+├── scripts/package-release.ps1     optionally signed, verified versioned ZIP + SHA-256 and legal/privacy/license documents
 ├── Directory.Build.props           isolated build outputs, no lock against running release
 ├── docs/                           engineering documentation
 │   └── PERSONAL_MODEL_USER_DESCRIPTION.md canonical RU/EN explanation; mandatory synchronization contract

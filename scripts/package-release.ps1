@@ -38,6 +38,7 @@ try {
     }
     $verifiedExe = Join-Path $workspace 'dist\NotBadPrivacyDetectorAgent.exe'
     if (-not (Test-Path -LiteralPath $verifiedExe)) { throw 'Verified portable EXE is missing after verify.' }
+    $releaseSignature = Get-AuthenticodeSignature -LiteralPath $verifiedExe
     Copy-Item -LiteralPath $verifiedExe -Destination (Join-Path $packageRoot 'NotBadPrivacyDetectorAgent.exe')
 
     $assetsPath = Join-Path $workspace '.tmp\build\PrivacyAudit\obj\project.assets.json'
@@ -70,6 +71,8 @@ try {
         "NotBad Privacy Detector Agent v$version",
         '',
         'This is a portable application. It is not installed into Windows.',
+        "Authenticode status: $($releaseSignature.Status)",
+        'Unsigned releases are identified by the SHA-256 file published beside this archive.',
         'Delete NotBadPrivacyDetectorAgent.exe manually to remove the program binary.',
         '',
         "Source code and updates: $repository"
@@ -81,6 +84,10 @@ try {
     Set-Content -LiteralPath ($zipPath + '.sha256') -Value "$($hash.Hash)  $([IO.Path]::GetFileName($zipPath))" -Encoding ASCII
     Write-Host "RELEASE: $zipPath"
     Write-Host "SHA256: $($hash.Hash)"
+    Write-Host "AUTHENTICODE: $($releaseSignature.Status)"
+    if ($releaseSignature.Status -ne 'Valid') {
+        Write-Warning 'This release is unsigned. Publish and verify the SHA-256 sidecar, and submit the exact release artifact to antivirus vendors if it is falsely detected.'
+    }
     $publishInstructions = Join-Path $releaseRoot ("publish-github-release-$releaseTag.txt")
     @(
         "NotBad Privacy Detector Agent — GitHub release $releaseTag",

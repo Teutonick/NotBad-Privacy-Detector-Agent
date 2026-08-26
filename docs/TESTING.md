@@ -37,3 +37,5 @@ The reset-filters path is expected to restore `DetectionPriorityRank` descending
 Cleanup tests use a dedicated temporary fake local-app-data root. They verify that secondary cleanup preserves AI recommendations and ratings, full cleanup removes only the owned root, and foreign roots are rejected.
 
 `scripts\package-release.ps1` invokes the required verification first and then produces a compact versioned ZIP containing the portable EXE, runtime/legal documents, third-party license files and SHA-256 sidecar. Source-only project documentation and demo media are not copied into the ZIP.
+
+Developer and public release runs may produce an unsigned artifact while no publicly trusted certificate is available. `package-release.ps1` reports that state explicitly and always emits a SHA-256 sidecar. If protected Authenticode credentials are configured later, signing and timestamp verification occur before the exact signed artifact is smoke-tested and packaged.
