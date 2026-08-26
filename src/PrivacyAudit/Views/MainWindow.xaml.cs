@@ -28,6 +28,8 @@ public partial class MainWindow : Window
     readonly AuditDatabase _db;
     readonly ModelManager _modelManager;
     readonly PeopleScanRepository _peopleRepository;
+    readonly ModelManager _imageSafetyModelManager;
+    readonly ImageSafetyRepository _imageSafetyRepository;
     readonly PersonalAttentionModelService _personalModel;
     readonly AppDataCleanupService _cleanupService;
     readonly DeepAuditScannerRegistry _deepScannerRegistry;
@@ -114,6 +116,9 @@ public partial class MainWindow : Window
     bool _applicationHistoryPriorityPartialHintDismissed;
     bool _peopleModelInstalled;
     bool _peopleModelStatusKnown;
+    bool _imageSafetyModelInstalled;
+    bool _imageSafetyModelStatusKnown;
+    CancellationTokenSource? _imageSafetyScanCts;
     PriorityAuditSession? _priorityAuditSession;
     bool _priorityReportTileMode;
     CancellationTokenSource? _priorityAuditCts;
@@ -251,6 +256,9 @@ public partial class MainWindow : Window
         if (PeopleScanButton is not null) PeopleScanButton.IsEnabled = enabled;
         if (DownloadPeopleModelButton is not null) DownloadPeopleModelButton.IsEnabled = enabled;
         if (RemovePeopleModelButton is not null) RemovePeopleModelButton.IsEnabled = enabled;
+        if (NsfwScanButton is not null) NsfwScanButton.IsEnabled = enabled;
+        if (DownloadNsfwModelButton is not null) DownloadNsfwModelButton.IsEnabled = enabled;
+        if (RemoveNsfwModelButton is not null) RemoveNsfwModelButton.IsEnabled = enabled;
         if (ApplicationHistoryAnalyzeButton is not null) ApplicationHistoryAnalyzeButton.IsEnabled = enabled && _auditAvailableForApplicationHistory;
     }
 
@@ -306,7 +314,9 @@ public partial class MainWindow : Window
         try { _db.PruneAuditHistory(DateTime.UtcNow - StorageLimits.AuditRetention); } catch (Exception ex) { CrashLogger.LogException(ex, "Retention cleanup"); }
         _modelManager = new(data);
         _peopleRepository = new(_databasePath);
-        _deepScannerRegistry = DeepAuditScannerRegistry.CreateDefault(_modelManager, _peopleRepository);
+        _imageSafetyModelManager = new(data, ModelManifest.ImageSafetyXs);
+        _imageSafetyRepository = new(_databasePath);
+        _deepScannerRegistry = DeepAuditScannerRegistry.CreateDefault(_modelManager, _peopleRepository, _imageSafetyModelManager, _imageSafetyRepository);
         _priorityAuditStore = new(Path.Combine(data, "priority-audit-session.json"));
         _personalModel = new(data);
         _cleanupService = new(data);
@@ -340,7 +350,7 @@ public partial class MainWindow : Window
         ApplyPersonalState();
         Loaded += async (_, _) =>
         {
-            var modelAvailabilityTask = RefreshPeopleModelAvailabilityAsync();
+            var modelAvailabilityTask = Task.WhenAll(RefreshPeopleModelAvailabilityAsync(), RefreshImageSafetyModelAvailabilityAsync());
             if (!suppressRestorePrompt && !_restoreStarted)
             {
                 _restoreStarted = true;
@@ -2091,6 +2101,7 @@ public partial class MainWindow : Window
                         "GeoExif" => ExifMetadataResult.TryParse(finding.MetadataJson, out var exif) && exif!.DisclosedFields.Count > 0,
                         "GpsOnly" => ExifMetadataResult.TryParse(finding.MetadataJson, out var exif) && exif!.HasGeolocation,
                         "Documents" => isDoc,
+                        "NSFW" => ImageSafetyMetadata.IsHighConfidenceNsfw(finding.MetadataJson),
                         "People" => hasResult && result!.Status == PeopleScanStatus.Completed && result.PeopleDetected,
                         "NoPeople" => hasResult && result!.Status == PeopleScanStatus.Completed && !result.PeopleDetected,
                         "Errors" => hasResult && result!.Status == PeopleScanStatus.Error,
@@ -2190,6 +2201,12 @@ public partial class MainWindow : Window
         RemovePeopleModelButton.IsEnabled = _modelManager.HasModelFiles && !modelBusy && !peopleBusy && _activeMediaTaskCount == 0;
         PeopleScanPauseButton.IsEnabled = peopleBusy;
         PeopleScanCancelButton.IsEnabled = modelBusy || peopleBusy || _peopleScanState.IsPaused;
+        var safetyInstalled = _imageSafetyModelStatusKnown && _imageSafetyModelInstalled;
+        DownloadNsfwModelButton.Visibility = safetyInstalled ? Visibility.Collapsed : Visibility.Visible;
+        DownloadNsfwModelButton.IsEnabled = !modelBusy && _imageSafetyScanCts is null && _activeMediaTaskCount == 0;
+        NsfwScanButton.IsEnabled = !modelBusy && _imageSafetyScanCts is null && _activeMediaTaskCount == 0;
+        NsfwScanCancelButton.IsEnabled = _imageSafetyScanCts is not null;
+        RemoveNsfwModelButton.IsEnabled = _imageSafetyModelManager.HasModelFiles && !modelBusy && _imageSafetyScanCts is null && _activeMediaTaskCount == 0;
     }
 
     async Task RefreshPeopleModelAvailabilityAsync()
@@ -2197,6 +2214,14 @@ public partial class MainWindow : Window
         try { _peopleModelInstalled = await _modelManager.IsInstalledAsync(); }
         catch { _peopleModelInstalled = false; }
         _peopleModelStatusKnown = true;
+        UpdateModelControls();
+    }
+
+    async Task RefreshImageSafetyModelAvailabilityAsync()
+    {
+        try { _imageSafetyModelInstalled = await _imageSafetyModelManager.IsInstalledAsync(); }
+        catch { _imageSafetyModelInstalled = false; }
+        _imageSafetyModelStatusKnown = true;
         UpdateModelControls();
     }
 
@@ -2265,6 +2290,94 @@ public partial class MainWindow : Window
             guard.Dispose();
             _cts.Dispose(); _cts = null; CancelButton.IsEnabled = false; Busy.Visibility = Visibility.Collapsed; UpdateModelControls();
         }
+    }
+
+    async void DownloadNsfwModel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cts is not null) return;
+        var guard = TryAcquireHeavyTask(LocalizationService.Get("DownloadNsfwModel"));
+        if (guard is null) return;
+        _cts = new CancellationTokenSource(); UpdateModelControls();
+        NsfwScanProgress.Visibility = Visibility.Visible; NsfwScanProgress.IsIndeterminate = true; NsfwScanErrorText.Visibility = Visibility.Collapsed;
+        try
+        {
+            var progress = new Progress<ModelDownloadProgress>(p =>
+            {
+                NsfwScanStageText.Text = p.Stage.ToString();
+                NsfwScanProgress.IsIndeterminate = p.Fraction is null;
+                if (p.Fraction is double fraction) NsfwScanProgress.Value = fraction;
+                NsfwScanProgressText.Text = p.TotalBytes is long total ? $"{Format.Bytes(p.BytesReceived)} / {Format.Bytes(total)}" : "";
+            });
+            await _imageSafetyModelManager.EnsureInstalledDetailedAsync(progress, _cts.Token);
+            _imageSafetyModelInstalled = _imageSafetyModelStatusKnown = true;
+            NsfwScanProgress.IsIndeterminate = false; NsfwScanProgress.Value = 1; NsfwScanStageText.Text = LocalizationService.Get("NsfwModelInstalled");
+            StatusText.Text = LocalizationService.Get("NsfwModelInstalled");
+        }
+        catch (OperationCanceledException) { NsfwScanStageText.Text = LocalizationService.Get("NsfwScanCanceled"); }
+        catch (Exception ex)
+        {
+            NsfwScanStageText.Text = LocalizationService.Get("NsfwModelRequired"); NsfwScanErrorText.Text = ex.Message; NsfwScanErrorText.Visibility = Visibility.Visible;
+        }
+        finally { guard.Dispose(); _cts.Dispose(); _cts = null; UpdateModelControls(); }
+    }
+
+    async void NsfwScan_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cts is not null || _imageSafetyScanCts is not null) return;
+        if (!await _imageSafetyModelManager.IsInstalledAsync())
+        {
+            if (System.Windows.MessageBox.Show(LocalizationService.Get("NsfwModelPrompt"), LocalizationService.Get("AppTitle"), MessageBoxButton.YesNo, MessageBoxImage.Information, MessageBoxResult.No) == MessageBoxResult.Yes)
+                DownloadNsfwModel_Click(sender, e);
+            return;
+        }
+        var guard = TryAcquireHeavyTask(LocalizationService.Get("NsfwScanTitle"));
+        if (guard is null) return;
+        var images = await Task.Run(() => _mediaFindings.Where(x => File.Exists(x.Path)).ToArray());
+        if (images.Length == 0) { guard.Dispose(); StatusText.Text = LocalizationService.Get("NoImagesForNsfwScan"); return; }
+        _imageSafetyScanCts = new CancellationTokenSource(); UpdateModelControls();
+        NsfwScanProgress.Visibility = Visibility.Visible; NsfwScanProgress.IsIndeterminate = false; NsfwScanProgress.Value = 0; NsfwScanErrorText.Visibility = Visibility.Collapsed;
+        try
+        {
+            var progress = new Progress<ImageSafetyScanProgress>(p =>
+            {
+                NsfwScanProgress.Value = p.Total == 0 ? 0 : p.Completed / (double)p.Total;
+                NsfwScanStageText.Text = string.Format(LocalizationService.Get("NsfwScanRunning"), p.Completed, p.Total);
+                NsfwScanProgressText.Text = $"NSFW: {p.Nsfw:N0} · NSFL: {p.Nsfl:N0} · {LocalizationService.Get("PeopleScanErrors")}: {p.Errors:N0}";
+            });
+            var results = await new ImageSafetyScanner(_imageSafetyModelManager, _imageSafetyRepository).ScanAsync(images, false, progress, _imageSafetyScanCts.Token);
+            foreach (var result in results)
+            {
+                var finding = _findings.FirstOrDefault(x => x.Path.Equals(result.Path, StringComparison.OrdinalIgnoreCase));
+                if (finding is null || result.Status != ImageSafetyScanStatus.Completed) continue;
+                finding.MetadataJson = ImageSafetyMetadata.InjectIntoMetadata(finding.MetadataJson, result);
+                finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.ImageSafety);
+            }
+            SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
+            var nsfw = results.Count(x => x.Status == ImageSafetyScanStatus.Completed && x.PrimaryClass == ImageSafetyClass.NSFW);
+            var nsfl = results.Count(x => x.Status == ImageSafetyScanStatus.Completed && x.PrimaryClass == ImageSafetyClass.NSFL);
+            var errors = results.Count(x => x.Status == ImageSafetyScanStatus.Error);
+            NsfwScanProgress.Value = 1; NsfwScanStageText.Text = string.Format(LocalizationService.Get("NsfwScanComplete"), results.Count, nsfw, nsfl, errors); StatusText.Text = NsfwScanStageText.Text;
+        }
+        catch (OperationCanceledException) { await ApplyPersistedImageSafetyResultsAsync(images); NsfwScanStageText.Text = LocalizationService.Get("NsfwScanCanceled"); StatusText.Text = NsfwScanStageText.Text; }
+        catch (Exception ex) { NsfwScanErrorText.Text = ex.Message; NsfwScanErrorText.Visibility = Visibility.Visible; }
+        finally { guard.Dispose(); _imageSafetyScanCts.Dispose(); _imageSafetyScanCts = null; UpdateModelControls(); }
+    }
+
+    async Task ApplyPersistedImageSafetyResultsAsync(IEnumerable<Finding> images)
+    {
+        var restored = await Task.Run(() => images.Select(f => (Finding: f, Result: _imageSafetyRepository.Get(f.Path))).Where(x => x.Result?.Status == ImageSafetyScanStatus.Completed).ToArray());
+        foreach (var item in restored) { item.Finding.MetadataJson = ImageSafetyMetadata.InjectIntoMetadata(item.Finding.MetadataJson, item.Result!); item.Finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(item.Finding.MetadataJson, DetectionEvidenceCalculator.ImageSafety); }
+        SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
+    }
+
+    void NsfwScanCancel_Click(object sender, RoutedEventArgs e) => RequestCancellation(_imageSafetyScanCts, showGlobalProgress: false);
+
+    void RemoveNsfwModel_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_imageSafetyModelManager.HasModelFiles || _imageSafetyScanCts is not null) return;
+        if (System.Windows.MessageBox.Show(LocalizationService.Get("NsfwModelRemovePrompt"), LocalizationService.Get("AppTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        try { _imageSafetyModelManager.RemoveInstalledModel(); _imageSafetyModelInstalled = false; _imageSafetyModelStatusKnown = true; NsfwScanStageText.Text = LocalizationService.Get("NsfwModelRemoved"); StatusText.Text = NsfwScanStageText.Text; UpdateModelControls(); }
+        catch (Exception ex) { NsfwScanErrorText.Text = ex.Message; NsfwScanErrorText.Visibility = Visibility.Visible; }
     }
 
     async void PeopleScan_Click(object sender, RoutedEventArgs e)
@@ -3572,6 +3685,7 @@ public partial class MainWindow : Window
         UpdateProvenancePanel(f);
         _selected = f;
         OpenDetailsFileButton.Visibility = IsDirectoryFinding(f) ? Visibility.Collapsed : Visibility.Visible;
+        DeleteDetailsFileButton.Visibility = IsDirectoryFinding(f) ? Visibility.Collapsed : Visibility.Visible;
         var piiDetails = PiiDetectionResult.TryParse(f.MetadataJson, out var pii) && pii!.TotalMatches > 0
             ? $"\n\n{string.Format(LocalizationService.Get("PiiDetails"), pii.TotalMatches, string.Join(", ", pii.Categories), string.Join("\n• ", pii.Matches.Take(10).Select(m => $"{m.Category}: {m.Sample}")))}"
             : "";
@@ -3583,6 +3697,9 @@ public partial class MainWindow : Window
             : "";
         var peopleDetails = PeopleScanMetadata.TryParse(f.MetadataJson, out var people)
             ? $"\n\n{string.Format(LocalizationService.Get("PeopleDetails"), people!.Status == PeopleScanStatus.Completed && people.PeopleDetected ? LocalizationService.Get("PeopleDetected") : people.Status == PeopleScanStatus.Error ? LocalizationService.Get("PeopleScanErrors") : LocalizationService.Get("NoPeopleDetected"), people.FaceCount, people.MaxConfidence, people.ModelVersion, people.ScannedAtUtc.ToLocalTime())}"
+            : "";
+        var safetyDetails = ImageSafetyMetadata.TryParse(f.MetadataJson, out var safety)
+            ? $"\n\n{string.Format(LocalizationService.Get("NsfwScoreDetails"), safety!.PrimaryClass, safety.NsfwScore, safety.NsflScore, safety.SfwScore, safety.ModelVersion, safety.ScannedAtUtc.ToLocalTime())}"
             : "";
         var exifDetails = ExifMetadataResult.TryParse(f.MetadataJson, out var exif) && exif!.DisclosedFields.Count > 0
             ? $"\n\n{string.Format(LocalizationService.Get("ExifDetails"), string.Join(", ", exif.DisclosedFields), exif.ExposureLevel, exif.HasGeolocation ? $"{exif.Latitude:F6}, {exif.Longitude:F6} (Alt: {exif.Altitude}m)" : "—", exif.CameraModel ?? "—", exif.CameraSerialNumber ?? "—", exif.Software ?? "—", exif.Author ?? exif.LastSavedBy ?? "—", exif.DateTaken ?? "—")}"
@@ -3605,7 +3722,7 @@ public partial class MainWindow : Window
               (PersonalAttentionFeatureExtractor.Explain(f) is { Count: > 0 } factors ? $"\n{LocalizationService.Get("Why")}:\n• {string.Join("\n• ", factors)}" : "")
             : $"\n\n{LocalizationService.Get("PersonalModelNotTrained")}";
         var radarDetails = string.Format(LocalizationService.Get("PrivacyRadarDetails"), PrivacyRadarRanking.ObjectiveRisk(f), f.PersonalAttentionScore is float attention ? $"{attention:0} / 100" : "—", PrivacyRadarRanking.Score(f), PrivacyRadarRanking.ConfirmedSignals(f));
-        DetailsText.Text = $"{f.DisplayName}\n\nFull path:\n{f.Path}\n\nSize: {f.SizeDisplay}\nCreated: {f.CreatedAt}\nModified: {f.ModifiedAt}\nLast access: {f.LastAccessAt}\n\nExposure: {f.ExposureScore} / 100 ({f.RiskLevel})\n{radarDetails}\nReasons:\n• {string.Join("\n• ", f.ExposureReasons)}\n\nCategory: {f.Category}\nSubcategory: {f.Subcategory}\nAge: {f.AgeClass}\nScanner: {f.ScannerId}{personalDetails}{piiDetails}{secDetails}{docDetails}{peopleDetails}{exifDetails}{configDetails}{identityDetails}{archiveDetails}{applicationHistoryDetails}";
+        DetailsText.Text = $"{f.DisplayName}\n\nFull path:\n{f.Path}\n\nSize: {f.SizeDisplay}\nCreated: {f.CreatedAt}\nModified: {f.ModifiedAt}\nLast access: {f.LastAccessAt}\n\nExposure: {f.ExposureScore} / 100 ({f.RiskLevel})\n{radarDetails}\nReasons:\n• {string.Join("\n• ", f.ExposureReasons)}\n\nCategory: {f.Category}\nSubcategory: {f.Subcategory}\nAge: {f.AgeClass}\nScanner: {f.ScannerId}{personalDetails}{piiDetails}{secDetails}{docDetails}{peopleDetails}{safetyDetails}{exifDetails}{configDetails}{identityDetails}{archiveDetails}{applicationHistoryDetails}";
 
         // Media Preview on Details tab
         if (string.Equals(Classifier.File(f.Path), "Images", StringComparison.OrdinalIgnoreCase) && File.Exists(f.Path))
@@ -3933,6 +4050,11 @@ public partial class MainWindow : Window
     }
     void DeleteFinding(Finding finding) => DeleteFindings([finding]);
 
+    void DeleteDetailsFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selected is not null && !IsDirectoryFinding(_selected)) DeleteFinding(_selected);
+    }
+
     void DeleteFindings(IReadOnlyCollection<Finding> selected)
     {
         if (selected.Count == 0) return;
@@ -3975,6 +4097,9 @@ public partial class MainWindow : Window
             {
                 _selected = null;
                 DetailsText.Clear();
+                OpenDetailsFileButton.Visibility = Visibility.Collapsed;
+                DeleteDetailsFileButton.Visibility = Visibility.Collapsed;
+                DetailsImagePreviewBorder.Visibility = Visibility.Collapsed;
             }
             FindingsGrid.UnselectAll();
             FindingsTileList.UnselectAll();
@@ -4193,6 +4318,7 @@ public partial class MainWindow : Window
         _cts?.Cancel();
         _textScanCts?.Cancel();
         _peopleScanCts?.Cancel();
+        _imageSafetyScanCts?.Cancel();
         _documentScanCts?.Cancel();
         _similarCts?.Cancel();
         _exifScanCts?.Cancel();

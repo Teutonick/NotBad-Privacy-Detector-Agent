@@ -6,6 +6,18 @@ using PrivacyAudit.PeopleDetection;
 
 namespace PrivacyAudit;
 
+public sealed class NsfwBlurEffectConverter : IMultiValueConverter
+{
+    public object? Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length < 2 || values[1] is not true || values[0] is not string json) return null;
+        return ImageSafetyMetadata.TryParse(json, out var result) && result!.Status == ImageSafetyScanStatus.Completed && result.PrimaryClass == ImageSafetyClass.NSFW
+            ? new System.Windows.Media.Effects.BlurEffect { Radius = 24 }
+            : null;
+    }
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
 public sealed class LocalizedBooleanConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object? parameter, CultureInfo culture) =>
@@ -118,6 +130,9 @@ public sealed class FindingBadgeConverter : IValueConverter
 
         if (PeopleScanMetadata.TryParse(json, out var people) && people!.PeopleDetected)
             badges.Add($"{LocalizationService.Get("PeopleDetected")}: {people.FaceCount}");
+
+        if (ImageSafetyMetadata.TryParse(json, out var safety) && safety!.Status == ImageSafetyScanStatus.Completed && safety.PrimaryClass != ImageSafetyClass.SFW)
+            badges.Add($"{safety.PrimaryClass} · NSFW Score: {safety.NsfwScore:P0}");
 
         if (badges.Count > 0) return string.Join("  •  ", badges);
         return DetectionEvidenceCalculator.Summarize(json).HasCompletedScan

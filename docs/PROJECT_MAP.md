@@ -59,6 +59,9 @@ PrivacyAudit.sln
 │   ├── DocumentDetector.cs        strict paper/text-band/geometry evidence; YuNet face only corroborates an ID document
 │   ├── ImageSimilarity.cs         perceptual dHash (9x8) & aHash (8x8) difference matching without neural networks
 │   ├── YuNetDetector.cs           on-device ONNX face detector
+│   ├── ImageSafetyClassifier.cs   RGB 224×224 local NSFL/NSFW/SFW ONNX inference
+│   ├── ImageSafetyScanner.cs      unchanged-file cache, progress and cancellation
+│   ├── ImageSafetyRepository.cs   SQLite persistence for all three scores
 │   └── PeopleScanner.cs           local media scanner coordinator
 │   ├── Scanners/                   independent scanner modules (Filesystem, Windows)
 │   └── Storage/                    local SQLite persistence & snapshots
@@ -85,6 +88,7 @@ Scanner errors are isolated. Cancellation returns a partial report. System cultu
 - **Application history ordering**: the default report order is availability/menu-state priority (`Да/Да`, `Да/Нет`, `Нет/Да`, `Нет/Нет`), followed by risk and recency; the AI ordering option remains an explicit alternative.
 - **Language preference**: `LocalizationService` resolves the saved `ru`/`en` choice from the app-owned local-data folder, exposes a compact current-language button in `SidebarFooterControl`, and restarts through `App.OnExit` only after the user confirms. The old process releases the single-instance mutex before launching the replacement with the original arguments.
 - **Details return navigation**: opening an object by double-click records whether it came from the findings grid, findings tiles, or media tiles and stores the scroll offsets. Details exposes a small back-arrow button and accepts global XButton input, native XBUTTON down/up, routed browser-back commands, Alt+Left, browser-back app commands, and the browser-back virtual key, restoring the original tab/list and position across common mouse-driver mappings.
+- **Image Safety media controls**: the optional XS package classifies every found image as NSFW, NSFL or SFW and persists all three scores. The sole NSFW Media filter includes only completed results with `NSFW score > 0.85`; a compact background-free eye/eye-off toggle at the far right controls NSFW thumbnail blur. Details exposes the existing confirmed Recycle Bin workflow for files and hides it for directories.
 - **Accurate Detection Risk**: Jump List containers are technical exposure artifacts, not dangerous user files, and never receive a High/Critical finding. Risk is assigned to referenced objects from existing audit evidence; an unmatched historical path is promoted only for explicit sensitive-name/extension or network-path evidence.
 - **Reorganized Findings Toolbar**: Upper row houses category and risk dropdowns, deep scanning triggers (PII, Secrets, Configs, Identity, Archives), stop button, and legend toggle; lower row holds discrete size/age sliders, screen exposure toggle, personal ML recommendation toggle, vertically-centered search box, and the reset button.
 - **Detection-first Findings order**: The default grid order puts confirmed detector evidence ahead of scanned-clear and `Unknown` findings, using evidence volume, category breadth and then the compact Privacy Risk average. Scanner completion state is persisted in finding metadata so `Unknown` remains distinct from a completed scan with no confirmed detections.

@@ -49,3 +49,4 @@ The application is distributed under the MIT license, but its binary executable 
 | YuNet face detector model | 2026may, explicit download only | Optional face detection model | MIT; source-pinned SHA-256 is verified before use |
 
 No pretrained personal model is distributed. Its weights and training records are created strictly on the user's computer. SDKs for telemetry, advertising, analytics, or cloud analysis are entirely absent.
+Image Safety Classifier XS (`image-safety-classifier-xs`) by OwenElliott is an optional MIT-licensed ONNX model downloaded only after an explicit user action. Its SHA-256 is pinned and verified before installation; the MIT license is stored beside the model.

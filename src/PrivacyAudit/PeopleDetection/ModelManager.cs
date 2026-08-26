@@ -14,8 +14,8 @@ public sealed class ModelManager
     public ModelManager(string applicationDataDirectory, ModelManifest? manifest = null, HttpClient? httpClient = null, ModelIntegrityVerifier? integrityVerifier = null, TimeSpan? downloadTimeout = null)
     {
         Manifest = manifest ?? ModelManifest.YuNet2026May;
-        DirectoryPath = Path.Combine(applicationDataDirectory, "Models", "YuNet");
-        LogPath = Path.Combine(applicationDataDirectory, "people-model.log");
+        DirectoryPath = Path.Combine(applicationDataDirectory, "Models", Manifest.PackageDirectory);
+        LogPath = Path.Combine(applicationDataDirectory, Manifest.PackageDirectory == "YuNet" ? "people-model.log" : $"{Manifest.Id}-model.log");
         DownloadTimeout = downloadTimeout ?? TimeSpan.FromSeconds(45);
         _httpClient = httpClient ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _integrityVerifier = integrityVerifier ?? new ModelIntegrityVerifier();
@@ -77,18 +77,21 @@ public sealed class ModelManager
             progress?.Report(new(ModelDownloadStage.Verifying, total ?? 0, total));
             Log("Download finished. Verifying SHA-256.");
             if (!await _integrityVerifier.VerifyAsync(temporaryPath, Manifest, linkedToken.Token))
-                throw new ModelDownloadException("The downloaded YuNet model failed SHA-256 verification.", "hash_mismatch");
+                throw new ModelDownloadException($"The downloaded {Manifest.DisplayName} model failed SHA-256 verification.", "hash_mismatch");
 
             progress?.Report(new(ModelDownloadStage.DownloadingLicense, total ?? 0, total));
-            Log("Downloading the official MIT license copy.");
-            var license = await _httpClient.GetStringAsync(Manifest.LicenseUrl, linkedToken.Token);
+            Log(string.IsNullOrWhiteSpace(Manifest.LicenseUrl) ? "Preparing the source-declared MIT license copy." : "Downloading the official MIT license copy.");
+            var license = string.IsNullOrWhiteSpace(Manifest.LicenseUrl)
+                ? MitLicenseForOwenElliott
+                : await _httpClient.GetStringAsync(Manifest.LicenseUrl, linkedToken.Token);
             if (!license.Contains("MIT License", StringComparison.OrdinalIgnoreCase))
                 throw new ModelDownloadException("The downloaded model license is not the expected MIT license.", "license_mismatch");
 
             progress?.Report(new(ModelDownloadStage.Installing, total ?? 0, total));
+            RemoveObsoletePackageModels();
             File.Move(temporaryPath, ModelPath, true);
             await File.WriteAllTextAsync(LicensePath, license, linkedToken.Token);
-            var metadata = new ModelMetadata("YuNet", Manifest.Version, Manifest.License, Manifest.Sha256, "opencv/opencv_zoo");
+            var metadata = new ModelMetadata(Manifest.DisplayName, Manifest.Version, Manifest.License, Manifest.Sha256, Manifest.Source);
             await File.WriteAllTextAsync(MetadataPath, JsonSerializer.Serialize(metadata, JsonOptions), linkedToken.Token);
             progress?.Report(new(ModelDownloadStage.Completed, total ?? 1, total ?? 1));
             Log("Model installation completed successfully.");
@@ -131,6 +134,14 @@ public sealed class ModelManager
         }
     }
 
+    void RemoveObsoletePackageModels()
+    {
+        foreach (var path in Directory.EnumerateFiles(DirectoryPath, "*.onnx", SearchOption.TopDirectoryOnly))
+        {
+            if (!string.Equals(path, ModelPath, StringComparison.OrdinalIgnoreCase)) File.Delete(path);
+        }
+    }
+
     void Log(string message, Exception? exception = null)
     {
         try
@@ -146,6 +157,31 @@ public sealed class ModelManager
     }
 
     public void LogPeopleScanError(string path, Exception exception) => Log($"People scan failed for '{path}'.", exception);
+    public void LogScanError(string scanName, string path, Exception exception) => Log($"{scanName} scan failed for '{path}'.", exception);
 
     sealed record ModelMetadata(string Model, string Version, string License, string Sha256, string Source);
+
+    const string MitLicenseForOwenElliott = """
+        MIT License
+
+        Copyright (c) Owen Elliott
+
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        """;
 }

@@ -80,6 +80,7 @@ public sealed class TriageRouter
             var documentNameBonus = SensitiveTokens.Any(token => finding.DisplayName.Contains(token, StringComparison.OrdinalIgnoreCase)) ? 12 : 0;
             Add(DetectionEvidenceCalculator.Documents, 16 + fullImageBonus + documentNameBonus, DeepScannerCost.Expensive, "image candidate for document detection");
             Add(DetectionEvidenceCalculator.People, 14 + fullImageBonus, DeepScannerCost.Expensive, "image candidate for face detection");
+            Add(DetectionEvidenceCalculator.ImageSafety, 14 + fullImageBonus, DeepScannerCost.Expensive, "image candidate for local safety classification");
             if (ExifExtensions.Contains(ext)) Add(DetectionEvidenceCalculator.Exif, 22, DeepScannerCost.Cheap, "format may contain metadata");
         }
         else if (ExifExtensions.Contains(ext))

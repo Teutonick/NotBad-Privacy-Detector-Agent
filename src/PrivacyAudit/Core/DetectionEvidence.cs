@@ -21,6 +21,7 @@ public static class DetectionEvidenceCalculator
     public const string Archives = "archives";
     public const string Documents = "documents";
     public const string People = "people";
+    public const string ImageSafety = "image_safety";
     public const string Exif = "exif";
 
     public static string MarkCompleted(string? currentJson, string scannerKey)
@@ -45,7 +46,7 @@ public static class DetectionEvidenceCalculator
     {
         if (string.IsNullOrWhiteSpace(json)) return new(false, 0, 0);
 
-        var completed = HasCompletedStatus(json, Pii) || HasCompletedStatus(json, Secrets) || HasCompletedStatus(json, Configs) || HasCompletedStatus(json, Identity) || HasCompletedStatus(json, Archives) || HasCompletedStatus(json, Documents) || HasCompletedStatus(json, People) || HasCompletedStatus(json, Exif);
+        var completed = HasCompletedStatus(json, Pii) || HasCompletedStatus(json, Secrets) || HasCompletedStatus(json, Configs) || HasCompletedStatus(json, Identity) || HasCompletedStatus(json, Archives) || HasCompletedStatus(json, Documents) || HasCompletedStatus(json, People) || HasCompletedStatus(json, ImageSafety) || HasCompletedStatus(json, Exif);
         var categories = 0;
         var evidence = 0;
 
@@ -56,6 +57,7 @@ public static class DetectionEvidenceCalculator
         if (ArchiveInspectionResult.TryParse(json, out var archive) && archive!.IsArchive && archive.SensitiveEntriesCount > 0) { categories++; evidence += archive.SensitiveEntriesCount; }
         if (DocumentDetectionResult.TryParse(json, out var document) && document!.IsDocument) { categories++; evidence += document.IsIdentityDocument ? 2 : 1; }
         if (PeopleScanMetadata.TryParse(json, out var people) && people!.PeopleDetected) { categories++; evidence += Math.Max(1, people.FaceCount); }
+        if (ImageSafetyMetadata.TryParse(json, out var safety) && safety!.Status == ImageSafetyScanStatus.Completed && safety.PrimaryClass != ImageSafetyClass.SFW) { categories++; evidence++; }
         if (ExifMetadataResult.TryParse(json, out var exif) && exif!.DisclosedFields.Count > 0) { categories++; evidence += exif.DisclosedFields.Count; }
 
         return new(completed, categories, evidence);

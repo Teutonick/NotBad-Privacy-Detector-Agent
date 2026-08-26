@@ -21,11 +21,13 @@ public sealed class DeepAuditScannerRegistry
     public IReadOnlyCollection<IDeepAuditScanner> Scanners => _scanners.Values.ToArray();
     public bool TryGet(string id, out IDeepAuditScanner scanner) => _scanners.TryGetValue(id, out scanner!);
 
-    public static DeepAuditScannerRegistry CreateDefault(ModelManager modelManager, PeopleScanRepository peopleRepository) => new(new IDeepAuditScanner[]
+    public static DeepAuditScannerRegistry CreateDefault(ModelManager modelManager, PeopleScanRepository peopleRepository, ModelManager? imageSafetyModelManager = null, ImageSafetyRepository? imageSafetyRepository = null) => new(new IDeepAuditScanner[]
     {
         new PiiDeepScanner(), new SecretsDeepScanner(), new ConfigDeepScanner(), new IdentityDeepScanner(),
         new ArchiveDeepScanner(), new DocumentDeepScanner(), new ExifDeepScanner(), new PeopleDeepScanner(modelManager, peopleRepository)
-    });
+    }.Concat(imageSafetyModelManager is not null && imageSafetyRepository is not null
+        ? [new ImageSafetyDeepScanner(imageSafetyModelManager, imageSafetyRepository)]
+        : []));
 }
 
 abstract class DeepAuditScannerBase(string id, string nameKey) : IDeepAuditScanner
@@ -167,5 +169,24 @@ sealed class PeopleDeepScanner(ModelManager modelManager, PeopleScanRepository r
         }
         var failed = results.Where(result => result.Status == PeopleScanStatus.Error).Select(result => byPath.GetValueOrDefault(result.Path)?.Id).Where(id => id is not null).Select(id => id!.Value).ToArray();
         return new(Id, results.Count, results.Count(result => result.PeopleDetected), failed.Length, FailedFindingIds: failed);
+    }
+}
+
+sealed class ImageSafetyDeepScanner(ModelManager modelManager, ImageSafetyRepository repository) : IDeepAuditScanner
+{
+    public string Id => DetectionEvidenceCalculator.ImageSafety;
+    public string NameKey => "SearchNsfw";
+    public Task<bool> IsAvailableAsync(CancellationToken token = default) => modelManager.IsInstalledAsync(token);
+    public async Task<DeepScannerBatchResult> AnalyzeAsync(IReadOnlyList<Finding> findings, IProgress<DeepScannerProgress>? progress, CancellationToken token)
+    {
+        if (!await IsAvailableAsync(token)) return new(Id, 0, 0, 0, "Image Safety model is not installed");
+        var adapter = new Progress<ImageSafetyScanProgress>(x => progress?.Report(new(Id, x.Completed, x.Total, x.Nsfw + x.Nsfl, x.Errors, x.CurrentPath)));
+        var results = await new ImageSafetyScanner(modelManager, repository).ScanAsync(findings, false, adapter, token);
+        var byPath = findings.ToDictionary(x => x.Path, StringComparer.OrdinalIgnoreCase);
+        foreach (var result in results.Where(x => x.Status == ImageSafetyScanStatus.Completed))
+            if (byPath.TryGetValue(result.Path, out var finding))
+            { finding.MetadataJson = ImageSafetyMetadata.InjectIntoMetadata(finding.MetadataJson, result); finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, Id); }
+        var failed = results.Where(x => x.Status == ImageSafetyScanStatus.Error).Select(x => byPath.GetValueOrDefault(x.Path)?.Id).Where(x => x.HasValue).Select(x => x!.Value).ToArray();
+        return new(Id, results.Count, results.Count(x => x.Status == ImageSafetyScanStatus.Completed && x.PrimaryClass != ImageSafetyClass.SFW), failed.Length, FailedFindingIds: failed);
     }
 }

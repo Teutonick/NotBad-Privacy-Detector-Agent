@@ -25,3 +25,9 @@ Network access is used only after an explicit user action: to download the optio
 Application data resides in `%LOCALAPPDATA%\NotBadPrivacyDetectorAgent`. The cleanup dialog can clear secondary caches and audit results while preserving AI recommendations and ratings, or delete the entire application directory. Audited user files are never touched. The portable EXE is removed manually.
 
 Closing the application cancels in-process operations; no services, tray processes, scheduled tasks, startup entries, or persistent background workers remain.
+
+## Опциональная Image Safety модель / Optional Image Safety model
+
+Image Safety Classifier XS скачивается только после явного согласия пользователя, проверяется по закреплённому SHA-256 и может быть полностью удалена. NSFW-анализ выполняется локально и работает офлайн после установки. Исходные изображения, пути, результаты, миниатюры и уменьшенные RGB 224×224 данные не отправляются в сеть; уменьшенные данные существуют только в памяти на время inference.
+
+Image Safety Classifier XS is downloaded only after explicit user consent, verified against a pinned SHA-256, and can be removed completely. NSFW analysis is local and works offline after installation. Source images, paths, results, thumbnails, and resized RGB 224×224 inputs are never uploaded; resized inputs exist only in memory during inference.

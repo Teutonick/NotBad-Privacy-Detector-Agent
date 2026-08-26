@@ -29,7 +29,7 @@ public sealed class AppDataCleanupService
             SqliteConnection.ClearAllPools();
             using var connection = new SqliteConnection($"Data Source={database};Default Timeout=5");
             connection.Open();
-            foreach (var table in new[] { "findings", "scans", "exclusions", "people_scan_results" })
+            foreach (var table in new[] { "findings", "scans", "exclusions", "people_scan_results", "image_safety_results" })
             {
                 using var exists = connection.CreateCommand();
                 exists.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=$name";
@@ -49,6 +49,7 @@ public sealed class AppDataCleanupService
         DeleteFile(Path.Combine(_root, "crash.log"), removed);
         DeleteFile(Path.Combine(_root, "people-model.log"), removed);
         DeleteDirectory(Path.Combine(_root, "Models", "YuNet"), removed);
+        DeleteDirectory(Path.Combine(_root, "Models", "ImageSafety"), removed);
         RemoveIfEmpty(Path.Combine(_root, "Models"));
         return new(removed);
     }

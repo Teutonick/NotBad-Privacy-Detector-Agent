@@ -9,7 +9,10 @@ public sealed record ModelManifest(
     [property: JsonPropertyName("file")] string File,
     [property: JsonPropertyName("url")] string Url,
     [property: JsonPropertyName("sha256")] string Sha256,
-    [property: JsonPropertyName("license_url")] string LicenseUrl)
+    [property: JsonPropertyName("license_url")] string LicenseUrl,
+    [property: JsonPropertyName("package_directory")] string PackageDirectory = "YuNet",
+    [property: JsonPropertyName("display_name")] string DisplayName = "YuNet",
+    [property: JsonPropertyName("source")] string Source = "opencv/opencv_zoo")
 {
     public string ModelVersion => $"{Id}-{Version}";
 
@@ -23,4 +26,16 @@ public sealed record ModelManifest(
         "https://github.com/opencv/opencv_zoo/raw/refs/heads/main/models/face_detection_yunet/face_detection_yunet_2026may.onnx",
         "EBAFCE4E3C118D6554634BE5C27AB333B4C047A9A8C3FAF1D7CF93101C22F0F0",
         "https://github.com/opencv/opencv_zoo/raw/refs/heads/main/models/face_detection_yunet/LICENSE");
+
+    public static ModelManifest ImageSafetyXs { get; } = new(
+        "image-safety-classifier-xs",
+        "606ad3d",
+        "MIT",
+        "image-safety-classifier-xs.onnx",
+        "https://huggingface.co/OwenElliott/image-safety-classifier-xs/resolve/606ad3dfd6a023215e3ab0797040437cc365977b/onnx/image-safety-classifier-xs.onnx",
+        "8C28C49D9075F3AD15EBDC2961F02D5B3F99BE944815B848B49C9F0E6F3FB689",
+        "",
+        "ImageSafety",
+        "Image Safety Classifier XS",
+        "OwenElliott/image-safety-classifier-xs");
 }

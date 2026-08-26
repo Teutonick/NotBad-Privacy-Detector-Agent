@@ -404,6 +404,7 @@
                 <TextBlock Text="{local:Loc LegendSectionMediaScanners}" FontWeight="SemiBold" FontSize="11" Foreground="#929AAA" Margin="0,0,0,4"/>
                 <TextBlock TextWrapping="Wrap" FontSize="10.5" LineHeight="16" Foreground="#BAC5D6" Margin="0,0,0,8">
                   <Bold Foreground="#69B7FF"><Run Text="• "/><Run Text="{local:Loc DownloadModel}"/><Run Text=" / "/><Run Text="{local:Loc SearchPeople}"/><Run Text=":"/></Bold> <Run Text="{local:Loc PeopleScanHelp}"/><LineBreak/>
+                  <Bold Foreground="#69B7FF"><Run Text="• "/><Run Text="{local:Loc SearchNsfw}"/><Run Text=" / 👁:"/></Bold> <Run Text="{local:Loc NsfwScanHelp}"/><Run Text=" "/><Run Text="{local:Loc BlurNsfwThumbnailsHelp}"/><LineBreak/>
                   <Bold Foreground="#FFB340"><Run Text="• "/><Run Text="{local:Loc SearchDocuments}"/><Run Text=":"/></Bold> <Run Text="{local:Loc DocumentScanHelp}"/><LineBreak/>
                   <Bold Foreground="#69B7FF"><Run Text="• "/><Run Text="{local:Loc SearchExifGeo}"/><Run Text=":"/></Bold> <Run Text="{local:Loc ExifScanHelp}"/><LineBreak/>
                   <Bold Foreground="#FF6961"><Run Text="• "/><Run Text="{local:Loc StopScan}"/><Run Text=":"/></Bold> <Run Text="{local:Loc PeopleScanCancelHelp}"/><LineBreak/>
@@ -438,6 +439,37 @@
                 <Button x:Name="PeopleScanCancelButton" Click="PeopleScanCancel_Click" Content="{local:Loc CancelScan}" Padding="12,8" IsEnabled="False" ToolTip="{local:Loc PeopleScanCancelHelp}" Margin="0,0,6,6"/>
                 <Button x:Name="RemovePeopleModelButton" Click="RemovePeopleModel_Click" Content="{local:Loc RemoveModel}" Padding="12,8" IsEnabled="False" ToolTip="{local:Loc RemovePeopleModelHelp}" Margin="0,0,6,6"/>
               </WrapPanel>
+              <Separator Margin="0,8" Background="#24344D"/>
+              <TextBlock Text="{local:Loc NsfwScanTitle}" FontWeight="SemiBold"/>
+              <TextBlock Text="{local:Loc NsfwScanDescription}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+              <TextBlock x:Name="NsfwScanStageText" Text="{local:Loc NsfwScanReady}" Style="{StaticResource MutedText}" Margin="0,6,0,0"/>
+              <ProgressBar x:Name="NsfwScanProgress" Minimum="0" Maximum="1" Height="8" Margin="0,8,0,0" Visibility="Collapsed"/>
+              <TextBlock x:Name="NsfwScanProgressText" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
+              <TextBlock x:Name="NsfwScanErrorText" Foreground="#FF9F0A" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,4,0,0"/>
+              <Grid Margin="0,10,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <WrapPanel Grid.Column="0">
+                  <Button x:Name="DownloadNsfwModelButton" Click="DownloadNsfwModel_Click" Content="{local:Loc DownloadNsfwModel}" Padding="12,8" ToolTip="{local:Loc NsfwScanHelp}" Margin="0,0,6,6"/>
+                  <Button x:Name="NsfwScanButton" Style="{StaticResource PrimaryButton}" Click="NsfwScan_Click" Content="{local:Loc SearchNsfw}" Padding="12,8" ToolTip="{local:Loc NsfwScanHelp}" Margin="0,0,6,6"/>
+                  <Button x:Name="NsfwScanCancelButton" Click="NsfwScanCancel_Click" Content="{local:Loc StopScan}" Padding="12,8" IsEnabled="False" ToolTip="{local:Loc NsfwScanCancelHelp}" Margin="0,0,6,6"/>
+                  <Button x:Name="RemoveNsfwModelButton" Click="RemoveNsfwModel_Click" Content="{local:Loc RemoveNsfwModel}" Padding="12,8" IsEnabled="False" ToolTip="{local:Loc RemoveNsfwModelHelp}" Margin="0,0,6,6"/>
+                </WrapPanel>
+                <ToggleButton x:Name="BlurNsfwThumbnailsButton" Grid.Column="1" Width="34" Height="34" HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip="{local:Loc BlurNsfwThumbnailsHelp}" Cursor="Hand" Foreground="#A9C8E5" Background="Transparent" BorderThickness="0" Padding="0" Margin="8,0,0,6">
+                  <ToggleButton.Template>
+                    <ControlTemplate TargetType="ToggleButton">
+                      <Grid Width="26" Height="26" Background="Transparent">
+                        <Path Data="M 2,13 C 6,6 20,6 24,13 C 20,20 6,20 2,13 Z" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.8" Fill="Transparent" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        <Ellipse Width="6" Height="6" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.8" Fill="Transparent"/>
+                        <Line x:Name="EyeSlash" X1="4" Y1="4" X2="22" Y2="22" Stroke="{TemplateBinding Foreground}" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed"/>
+                      </Grid>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="White"/></Trigger>
+                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="EyeSlash" Property="Visibility" Value="Visible"/><Setter Property="Foreground" Value="#69B7FF"/></Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </ToggleButton.Template>
+                </ToggleButton>
+              </Grid>
             </StackPanel>
           </Border>
           <Border Grid.Column="1" Background="#0AFFFFFF" BorderBrush="#4D3B24" BorderThickness="1" CornerRadius="10" Padding="12" Margin="6,0,0,0">
@@ -472,6 +504,7 @@
             <ComboBoxItem Content="{local:Loc MediaFilterGeoExif}" Tag="GeoExif"/>
             <ComboBoxItem Content="{local:Loc MediaFilterGps}" Tag="GpsOnly"/>
             <ComboBoxItem Content="{local:Loc MediaFilterDocuments}" Tag="Documents"/>
+            <ComboBoxItem Content="{local:Loc MediaFilterNsfw}" Tag="NSFW"/>
             <ComboBoxItem Content="{local:Loc MediaFilterPeople}" Tag="People"/>
             <ComboBoxItem Content="{local:Loc MediaFilterNoPeople}" Tag="NoPeople"/>
             <ComboBoxItem Content="{local:Loc MediaFilterErrors}" Tag="Errors"/>
@@ -514,7 +547,7 @@
         <ListBox.ItemTemplate><DataTemplate>
           <Border Width="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=Tag}" Height="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=Tag}" Background="#12FFFFFF" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="7">
             <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-              <local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="320" Stretch="Uniform"/>
+              <local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="320" Stretch="Uniform"><local:AsyncThumbnail.Effect><MultiBinding Converter="{StaticResource NsfwBlurEffectConverter}"><Binding Path="MetadataJson"/><Binding ElementName="BlurNsfwThumbnailsButton" Path="IsChecked"/></MultiBinding></local:AsyncThumbnail.Effect></local:AsyncThumbnail>
               <TextBlock Grid.Row="1" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" FontSize="11" Margin="2,6,2,1" ToolTip="{Binding Path}"/>
               <TextBlock Grid.Row="2" Text="{Binding MetadataJson, Converter={StaticResource PeopleBadgeConverter}}" Foreground="#69B7FF" FontSize="10" TextTrimming="CharacterEllipsis" Margin="2,2,2,1"/>
               <DockPanel Grid.Row="3" Margin="0,2,0,0">
@@ -682,6 +715,7 @@
         <TextBlock Text="{local:Loc Actions}" Style="{StaticResource SectionTitle}"/>
         <Button x:Name="FindSimilarButton" Click="FindSimilar_Click" Content="{local:Loc FindSimilarDocuments}" Background="#1F0A84FF" Foreground="#69B7FF" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
         <Button x:Name="OpenDetailsFileButton" Click="Open_Click" Content="{local:Loc OpenFile}" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
+        <Button x:Name="DeleteDetailsFileButton" Style="{StaticResource DangerButton}" Click="DeleteDetailsFile_Click" Content="{local:Loc DeleteFile}" HorizontalContentAlignment="Left" Margin="0,0,0,8" ToolTip="{local:Loc DeleteFileDetailsHelp}"/>
         <Button Click="Folder_Click" Content="{local:Loc ShowExplorer}" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
         <Button Click="Copy_Click" Content="{local:Loc CopyPath}" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
         <Button Click="Ignore_Click" Content="{local:Loc IgnoreFinding}" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
