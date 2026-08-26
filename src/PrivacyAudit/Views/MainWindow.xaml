@@ -715,11 +715,11 @@
         <TextBlock Text="{local:Loc Actions}" Style="{StaticResource SectionTitle}"/>
         <Button x:Name="FindSimilarButton" Click="FindSimilar_Click" Content="{local:Loc FindSimilarDocuments}" Background="#1F0A84FF" Foreground="#69B7FF" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
         <Button x:Name="OpenDetailsFileButton" Click="Open_Click" Content="{local:Loc OpenFile}" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
-        <Button x:Name="DeleteDetailsFileButton" Style="{StaticResource DangerButton}" Click="DeleteDetailsFile_Click" Content="{local:Loc DeleteFile}" HorizontalContentAlignment="Left" Margin="0,0,0,8" ToolTip="{local:Loc DeleteFileDetailsHelp}"/>
         <Button Click="Folder_Click" Content="{local:Loc ShowExplorer}" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
         <Button Click="Copy_Click" Content="{local:Loc CopyPath}" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
         <Button Click="Ignore_Click" Content="{local:Loc IgnoreFinding}" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
-        <Button Click="Exclude_Click" Content="{local:Loc ExcludePath}" HorizontalContentAlignment="Left" Margin="0,0,0,24"/>
+        <Button Click="Exclude_Click" Content="{local:Loc ExcludePath}" HorizontalContentAlignment="Left" Margin="0,0,0,8"/>
+        <Button x:Name="DeleteDetailsFileButton" Style="{StaticResource DangerButton}" Click="DeleteDetailsFile_Click" Content="{local:Loc DeleteFile}" HorizontalContentAlignment="Left" Margin="0,0,0,24" ToolTip="{local:Loc DeleteFileDetailsHelp}"/>
         <TextBlock Text="{local:Loc IncorrectDetectionQuestion}" Style="{StaticResource SectionTitle}" FontSize="16" FontWeight="Bold" Foreground="#C09BFF" Margin="0,0,0,4"/>
         <Button Click="ReportIncorrectDetection_Click" Content="{local:Loc ReportIncorrectDetection}" HorizontalContentAlignment="Left" Margin="0,0,0,24" Background="#2849306A" Foreground="#CBB0F2" BorderBrush="#7650A6" ToolTip="{local:Loc ReportIncorrectDetectionTooltip}"/>
         <TextBlock Text="{local:Loc FileProvenanceTitle}" Style="{StaticResource SectionTitle}" FontSize="16" FontWeight="Bold" Foreground="#79C7FF" Margin="0,0,0,4"/>
