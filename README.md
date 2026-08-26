@@ -6,6 +6,14 @@
 
 > **Find what you forgot — before someone else does.**
 
+## Five true-to-life reasons to run NotBad
+
+1. **“What are you handing over with the laptop?”** — before a sale, expose the documents, photos, metadata and secrets that can outlive a normal cleanup.
+2. **“The pre-exit audit.”** — before returning a work computer, see in one run which personal files, account traces and activity footprints are still there.
+3. **“A stalker in your AppData.”** — turn hidden folders, caches and application history into a clear map of what Windows and your apps still remember about you.
+4. **“Find the NSFW before it finds you.”** — surface forgotten intimate and sensitive images in old folders before the computer changes hands.
+5. **“Red-team yourself.”** — look at your PC through an attacker’s eyes and discover which files reveal your identity, habits and access first.
+
 NotBad Privacy Detector Agent is a portable, local-first privacy scanner for Windows. It turns forgotten files, personal data, secrets, application traces and revealing metadata into a clear map of what deserves your attention — without sending your digital life to the cloud.
 
 ![NotBad Privacy Detector Agent demo](docs/assets/notbad-privacy-demo.gif)
