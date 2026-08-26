@@ -43,6 +43,23 @@ public sealed class TriageRouterTests
     }
 
     [Fact]
+    public void RouterSendsVideoOnlyToBoundedImageSafetyAnalysis()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"triage-video-{Guid.NewGuid():N}.mp4");
+        File.WriteAllBytes(path, [0]);
+        try
+        {
+            var finding = new Finding { Path = path, DisplayName = Path.GetFileName(path), Category = "Video", SizeBytes = 1, ExposureScore = 20 };
+            var routes = new TriageRouter().Route(finding);
+
+            Assert.Contains(routes, route => route.ScannerId == DetectionEvidenceCalculator.ImageSafety);
+            Assert.DoesNotContain(routes, route => route.ScannerId == DetectionEvidenceCalculator.People);
+            Assert.DoesNotContain(routes, route => route.ScannerId == DetectionEvidenceCalculator.Documents);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public void SelectionUsesTenPercentAndAbsoluteCap()
     {
         var root = Path.Combine(Path.GetTempPath(), $"triage-{Guid.NewGuid():N}");

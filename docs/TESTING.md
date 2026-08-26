@@ -8,11 +8,11 @@ Required release command:
 .\scripts\verify.ps1
 ```
 
-It redirects temporary state into the workspace, restores dependencies, runs Release tests, publishes a self-contained single-file EXE, executes `--smoke-test`, checks its exit code and confirms that its PID and child processes are gone.
+It redirects temporary state into the workspace, restores dependencies, runs Release tests, publishes a self-contained single-file EXE, executes `--smoke-test`, checks its exit code and confirms that its PID and child processes are gone. The smoke-test mode intentionally bypasses only the normal single-instance mutex so release verification can run while the user's ordinary app instance remains open; normal launches still enforce one instance.
 
 Coverage includes scoring, classification, age and bidirectional media-resolution filters, original image-header dimensions, pagination windows and viewport-anchor offset restoration, localization fallback, exclusions, SQLite, scanner isolation, partial cancellation, independent Media people/document operation state and localized control text, filesystem discovery, WPF construction and packaged-process lifecycle. Tests never delete system data or require administrator rights.
 
-Optional-model tests verify the Image Safety XS manifest and strict NSFW filter threshold, preservation of all three scores, unchanged-file reuse, obsolete-package cleanup only after verification, and retrying the checked-in repository mirror after an upstream download failure.
+Optional-model tests verify the Image Safety XS manifest and strict NSFW filter threshold, preservation of all three scores, unchanged-file reuse, Images/Videos scope selection, bounded one/two-frame video timestamp selection (including the one-/three-second unknown-duration fallback), video priority routing only to Image Safety, obsolete-package cleanup only after verification, and retrying the checked-in repository mirror after an upstream download failure.
 
 Snapshot and similarity coverage verifies that completed per-object similarity matches survive metadata serialization while unrelated detector metadata remains intact. Snapshot tests also verify that asynchronous restore honors a pre-canceled token. Manual responsiveness checks use a large restored audit and confirm that snapshot enrichment, media candidate preparation and model integrity verification do not execute on the WPF dispatcher; the restore-cancel action must open the new-audit form immediately and preserve the old snapshot until a new audit starts.
 

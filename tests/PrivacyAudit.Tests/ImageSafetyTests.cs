@@ -1,9 +1,20 @@
+using PrivacyAudit.Core;
 using PrivacyAudit.PeopleDetection;
 
 namespace PrivacyAudit.Tests;
 
 public sealed class ImageSafetyTests
 {
+    [Theory]
+    [InlineData("Images", true, false, true)]
+    [InlineData("Video", true, false, false)]
+    [InlineData("Images", false, true, false)]
+    [InlineData("Video", false, true, true)]
+    [InlineData("Video", true, true, true)]
+    [InlineData("Images", false, false, false)]
+    public void NsfwScopeSelectsOnlyRequestedMedia(string category, bool images, bool videos, bool expected) =>
+        Assert.Equal(expected, NsfwMediaScope.Matches(category, images, videos));
+
     [Fact]
     public void ManifestPinsOptionalMitOnnxPackage()
     {
@@ -46,6 +57,16 @@ public sealed class ImageSafetyTests
         var result = new ImageSafetyScanResult("photo.jpg", ImageSafetyScanStatus.Completed, ImageSafetyClass.NSFW,
             0, score, 1 - score, "xs", DateTime.UtcNow, 1, DateTime.Now);
         Assert.Equal(expected, ImageSafetyMetadata.IsHighConfidenceNsfw(ImageSafetyMetadata.InjectIntoMetadata(null, result)));
+    }
+
+    [Fact]
+    public void VideoSamplingUsesAtMostTwoBoundedFrames()
+    {
+        Assert.Equal([TimeSpan.FromMilliseconds(750)], VideoFrameSampler.SelectSamplePositions(TimeSpan.FromSeconds(1.5)));
+        Assert.Equal([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)], VideoFrameSampler.SelectSamplePositions(TimeSpan.FromSeconds(4)));
+        Assert.Equal([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(6)], VideoFrameSampler.SelectSamplePositions(TimeSpan.FromSeconds(12)));
+        Assert.Equal([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)], VideoFrameSampler.UnknownDurationPositions());
+        Assert.Equal(VideoFrameSampler.UnknownDurationPositions(), VideoFrameSampler.SelectSamplePositions(TimeSpan.Zero));
     }
 
     [Fact]

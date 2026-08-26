@@ -442,6 +442,10 @@
               <Separator Margin="0,8" Background="#24344D"/>
               <TextBlock Text="{local:Loc NsfwScanTitle}" FontWeight="SemiBold"/>
               <TextBlock Text="{local:Loc NsfwScanDescription}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+              <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                <CheckBox x:Name="NsfwImagesScopeCheckBox" Content="{local:Loc NsfwScopeImages}" IsChecked="True" Checked="NsfwScope_Changed" Unchecked="NsfwScope_Changed" Margin="0,0,16,0" ToolTip="{local:Loc NsfwScopeImagesHelp}"/>
+                <CheckBox x:Name="NsfwVideosScopeCheckBox" Content="{local:Loc NsfwScopeVideos}" Checked="NsfwScope_Changed" Unchecked="NsfwScope_Changed" ToolTip="{local:Loc NsfwScopeVideosHelp}"/>
+              </StackPanel>
               <TextBlock x:Name="NsfwScanStageText" Text="{local:Loc NsfwScanReady}" Style="{StaticResource MutedText}" Margin="0,6,0,0"/>
               <ProgressBar x:Name="NsfwScanProgress" Minimum="0" Maximum="1" Height="8" Margin="0,8,0,0" Visibility="Collapsed"/>
               <TextBlock x:Name="NsfwScanProgressText" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
@@ -501,7 +505,9 @@
         <TextBlock x:Name="MediaCountText" DockPanel.Dock="Right" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="4,0,0,8"/>
         <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
           <ComboBox x:Name="MediaPeopleFilter" Width="180" SelectionChanged="MediaFilter_Changed" ToolTip="{local:Loc MediaFilterHelp}" Margin="0,0,8,8">
-            <ComboBoxItem Content="{local:Loc MediaFilterAllImages}" Tag="All" IsSelected="True"/>
+            <ComboBoxItem Content="{local:Loc MediaFilterAllImages}" Tag="Images" IsSelected="True"/>
+            <ComboBoxItem Content="{local:Loc MediaFilterAllVideos}" Tag="Videos"/>
+            <ComboBoxItem Content="{local:Loc MediaFilterAllMedia}" Tag="AllMedia"/>
             <ComboBoxItem Content="{local:Loc MediaFilterGeoExif}" Tag="GeoExif"/>
             <ComboBoxItem Content="{local:Loc MediaFilterGps}" Tag="GpsOnly"/>
             <ComboBoxItem Content="{local:Loc MediaFilterDocuments}" Tag="Documents"/>
@@ -548,7 +554,10 @@
         <ListBox.ItemTemplate><DataTemplate>
           <Border Width="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=Tag}" Height="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=Tag}" Background="#12FFFFFF" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="7">
             <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-              <local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="320" Stretch="Uniform"><local:AsyncThumbnail.Effect><MultiBinding Converter="{StaticResource NsfwBlurEffectConverter}"><Binding Path="MetadataJson"/><Binding ElementName="BlurNsfwThumbnailsButton" Path="IsChecked"/></MultiBinding></local:AsyncThumbnail.Effect></local:AsyncThumbnail>
+              <Grid>
+                <TextBlock Text="{Binding Category, Converter={StaticResource FileGlyphConverter}}" Foreground="#66758A" FontSize="38" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <local:AsyncThumbnail FilePath="{Binding Path}" Category="{Binding Category}" DecodeWidth="320" Stretch="Uniform"><local:AsyncThumbnail.Effect><MultiBinding Converter="{StaticResource NsfwBlurEffectConverter}"><Binding Path="MetadataJson"/><Binding ElementName="BlurNsfwThumbnailsButton" Path="IsChecked"/></MultiBinding></local:AsyncThumbnail.Effect></local:AsyncThumbnail>
+              </Grid>
               <TextBlock Grid.Row="1" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" FontSize="11" Margin="2,6,2,1" ToolTip="{Binding Path}"/>
               <TextBlock Grid.Row="2" Text="{Binding MetadataJson, Converter={StaticResource PeopleBadgeConverter}}" Foreground="#69B7FF" FontSize="10" TextTrimming="CharacterEllipsis" Margin="2,2,2,1"/>
               <DockPanel Grid.Row="3" Margin="0,2,0,0">

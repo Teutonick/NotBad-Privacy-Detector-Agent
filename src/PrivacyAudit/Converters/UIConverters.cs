@@ -149,6 +149,9 @@ public sealed class PeopleBadgeConverter : IValueConverter
     {
         if (value is not string json) return LocalizationService.Get("PeopleNotScanned");
 
+        if (ImageSafetyMetadata.TryParse(json, out var safety) && safety!.Status == ImageSafetyScanStatus.Completed && safety.NsfwScore > ImageSafetyMetadata.NsfwFilterThreshold)
+            return $"NSFW Score: {safety.NsfwScore:P0}";
+
         // 1. Check if Document analysis was performed
         if (DocumentDetectionResult.TryParse(json, out var doc) && doc!.IsDocument)
         {

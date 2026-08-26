@@ -173,6 +173,29 @@ public sealed class ModelManager
 
     public void LogPeopleScanError(string path, Exception exception) => Log($"People scan failed for '{path}'.", exception);
     public void LogScanError(string scanName, string path, Exception exception) => Log($"{scanName} scan failed for '{path}'.", exception);
+    public void LogVideoDecode(string path, VideoFrameDiagnostic diagnostic)
+    {
+        var duration = diagnostic.Duration is { } d ? $"{d.TotalSeconds:0.###} s" : "unknown (VIDEO_DURATION_UNKNOWN)";
+        var actual = diagnostic.Actual is { } a ? $"{a.TotalSeconds:0.###} s" : "n/a";
+        var resolution = diagnostic.Width > 0 ? $"{diagnostic.Width}x{diagnostic.Height}" : "n/a";
+        var result = diagnostic.Code is { } code ? VideoDecodeCodeText(code) : diagnostic.Result;
+        Log($"Video decode | File: '{path}' | Duration: {duration} | Requested: {diagnostic.Requested.TotalSeconds:0.###} s | Decoded: {actual} | Resolution: {resolution} | Decode: {diagnostic.DecodeTime.TotalMilliseconds:0} ms | Result: {result}");
+    }
+
+    public void LogVideoDecodeError(string path, VideoDecodeException exception)
+    {
+        foreach (var diagnostic in exception.Diagnostics) LogVideoDecode(path, diagnostic);
+        Log($"Video decode skipped | File: '{path}' | Result: {VideoDecodeCodeText(exception.Code)} | {exception.Message}");
+    }
+
+    static string VideoDecodeCodeText(VideoDecodeCode code) => code switch
+    {
+        VideoDecodeCode.VideoNoDecoder => "VIDEO_NO_DECODER",
+        VideoDecodeCode.VideoUnsupported => "VIDEO_UNSUPPORTED",
+        VideoDecodeCode.VideoNoVideoStream => "VIDEO_NO_VIDEO_STREAM",
+        VideoDecodeCode.VideoDecodeTimeout => "VIDEO_DECODE_TIMEOUT",
+        _ => "VIDEO_DECODE_FAILED"
+    };
 
     string EmbeddedMitLicense() => MitLicenseTemplate.Replace("{AUTHOR}", Manifest.Source.StartsWith("opencv/", StringComparison.OrdinalIgnoreCase) ? "OpenCV team" : "Owen Elliott", StringComparison.Ordinal);
 

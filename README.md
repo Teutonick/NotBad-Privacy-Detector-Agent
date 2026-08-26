@@ -11,7 +11,7 @@
 1. **“What are you handing over with the laptop?”** — before a sale, expose the documents, photos, metadata and secrets that can outlive a normal cleanup.
 2. **“The pre-exit audit.”** — before returning a work computer, see in one run which personal files, account traces and activity footprints are still there.
 3. **“A stalker in your AppData.”** — turn hidden folders, caches and application history into a clear map of what Windows and your apps still remember about you.
-4. **“Find the NSFW before it finds you.”** — surface forgotten intimate and sensitive images in old folders before the computer changes hands.
+4. **“Find the NSFW before it finds you.”** — surface forgotten intimate and sensitive photos and videos in old folders before the computer changes hands.
 5. **“Red-team yourself.”** — look at your PC through an attacker’s eyes and discover which files reveal your identity, habits and access first.
 
 NotBad Privacy Detector Agent is a portable, local-first privacy scanner for Windows. It turns forgotten files, personal data, secrets, application traces and revealing metadata into a clear map of what deserves your attention — without sending your digital life to the cloud.
@@ -65,7 +65,7 @@ NotBad Privacy Detector Agent brings those traces together, explains the risk an
 <p align="center">
   <img src="docs/assets/readme-media-nsfw-search.png" alt="NotBad Privacy Detector Agent local NSFW search" width="960">
 </p>
-<p align="center"><em>Local NSFW search: classify found images on your computer with pause, continue and cancel controls—nothing is uploaded.</em></p>
+<p align="center"><em>Local NSFW search: classify found photos and videos on your computer with pause, continue and cancel controls—nothing is uploaded.</em></p>
 
 <p align="center">
   <img src="docs/assets/readme-media-document-scan.png" alt="NotBad Privacy Detector Agent document scan" width="960">

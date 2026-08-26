@@ -26,6 +26,8 @@ public sealed class TriageRouter
     public const int DefaultAbsoluteLimit = 25_000;
     static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
         { ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".avif" };
+    static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
+        { ".mp4", ".mov", ".avi", ".mkv", ".webm", ".mts", ".m2ts" };
     static readonly HashSet<string> ExifExtensions = new(StringComparer.OrdinalIgnoreCase)
         { ".jpg", ".jpeg", ".tif", ".tiff", ".heic", ".png", ".webp", ".docx", ".xlsx", ".pptx" };
     static readonly HashSet<string> ConfigExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -82,6 +84,10 @@ public sealed class TriageRouter
             Add(DetectionEvidenceCalculator.People, 14 + fullImageBonus, DeepScannerCost.Expensive, "image candidate for face detection");
             Add(DetectionEvidenceCalculator.ImageSafety, 14 + fullImageBonus, DeepScannerCost.Expensive, "image candidate for local safety classification");
             if (ExifExtensions.Contains(ext)) Add(DetectionEvidenceCalculator.Exif, 22, DeepScannerCost.Cheap, "format may contain metadata");
+        }
+        else if (VideoExtensions.Contains(ext) || finding.Category.Equals("Video", StringComparison.OrdinalIgnoreCase))
+        {
+            Add(DetectionEvidenceCalculator.ImageSafety, 12, DeepScannerCost.Expensive, "video candidate for bounded local safety classification");
         }
         else if (ExifExtensions.Contains(ext))
         {

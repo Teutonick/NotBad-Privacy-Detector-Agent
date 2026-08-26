@@ -22,6 +22,12 @@ public sealed class ImageSafetyClassifier : IDisposable
     {
         token.ThrowIfCancellationRequested();
         using var image = SixLabors.ImageSharp.Image.Load<Rgb24>(path);
+        return Classify(image, token);
+    }
+
+    public ImageSafetyScores Classify(Image<Rgb24> image, CancellationToken token = default)
+    {
+        token.ThrowIfCancellationRequested();
         image.Mutate(x => x.Resize(new ResizeOptions { Size = new SixLabors.ImageSharp.Size(224, 224), Mode = ResizeMode.Stretch, Sampler = KnownResamplers.Bicubic }));
         var pixels = new DenseTensor<float>([1, 3, 224, 224]);
         for (var y = 0; y < 224; y++)

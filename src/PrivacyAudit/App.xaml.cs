@@ -19,22 +19,26 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        var smokeTest = e.Args.Contains("--smoke-test", StringComparer.OrdinalIgnoreCase);
 
-        _singleInstanceMutex = new Mutex(true, @"Local\NotBadPrivacyDetectorAgent", out var isFirstInstance);
-        if (!isFirstInstance)
+        if (!smokeTest)
         {
-            System.Windows.MessageBox.Show(
-                LocalizationService.Get("SingleInstanceMessage"),
-                LocalizationService.Get("AppTitle"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            Shutdown(2);
-            return;
+            _singleInstanceMutex = new Mutex(true, @"Local\NotBadPrivacyDetectorAgent", out var isFirstInstance);
+            if (!isFirstInstance)
+            {
+                System.Windows.MessageBox.Show(
+                    LocalizationService.Get("SingleInstanceMessage"),
+                    LocalizationService.Get("AppTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                Shutdown(2);
+                return;
+            }
         }
 
-        var window = new MainWindow(e.Args.Contains("--smoke-test", StringComparer.OrdinalIgnoreCase));
+        var window = new MainWindow(smokeTest);
         MainWindow = window;
-        if (e.Args.Contains("--smoke-test", StringComparer.OrdinalIgnoreCase))
+        if (smokeTest)
         {
             window.Show();
             var smokeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
