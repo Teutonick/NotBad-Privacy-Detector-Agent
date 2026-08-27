@@ -58,6 +58,16 @@ public sealed class StartupTests
                 var setPriorityInteractions = typeof(MainWindow).GetMethod("SetPriorityAuditInteractions", BindingFlags.Instance | BindingFlags.NonPublic)!;
                 var startOver = Assert.IsType<Button>(window.FindName("StartOverButton"));
                 var priorityStart = Assert.IsType<Button>(window.FindName("PriorityWizardStartButton"));
+                var priorityPrepare = Assert.IsType<Button>(window.FindName("PriorityWizardPrepareButton"));
+                var priorityCancelPreparation = Assert.IsType<Button>(window.FindName("PriorityWizardCancelPreparationButton"));
+                Assert.NotNull(priorityPrepare.ToolTip);
+                Assert.NotNull(priorityCancelPreparation.ToolTip);
+                typeof(MainWindow).GetMethod("ShowPriorityWizardPreparingState", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+                Assert.Equal(Visibility.Visible, priorityCancelPreparation.Visibility);
+                Assert.Equal(Visibility.Collapsed, priorityStart.Visibility);
+                typeof(MainWindow).GetMethod("ShowPriorityWizardPreparationAvailableState", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, [true]);
+                Assert.Equal(Visibility.Visible, priorityPrepare.Visibility);
+                Assert.Equal(Visibility.Collapsed, priorityCancelPreparation.Visibility);
                 setRestoreReadOnly.Invoke(window, [true]);
                 setRestoreReadOnly.Invoke(window, [false]);
                 setPriorityInteractions.Invoke(window, [false]);

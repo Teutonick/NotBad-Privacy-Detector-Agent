@@ -8,7 +8,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>NotBadPrivacyDetectorAgent</AssemblyName>
     <RootNamespace>PrivacyAudit</RootNamespace>
-    <Version>1.0.2</Version>
+    <Company>tnick.cc</Company>
+    <Product>NotBad Privacy Detector Agent</Product>
+    <Copyright>Copyright © tnick 2026</Copyright>
+    <Description>Local read-only privacy auditor and sensitive-data detector for Windows.</Description>
+    <AssemblyTitle>NotBad Privacy Detector Agent</AssemblyTitle>
+    <Version>1.0.4</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\PrivacyAudit.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>

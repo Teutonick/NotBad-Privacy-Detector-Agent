@@ -10,15 +10,23 @@ public static class VideoFrameSampler
 {
     const int FirstVideoStream = unchecked((int)0xfffffffc), MediaSource = unchecked((int)0xffffffff), EndOfStream = 2, MaxSamplesAfterSeek = 32;
     static readonly TimeSpan DecodeGuard = TimeSpan.FromMilliseconds(900);
+    public static readonly TimeSpan OperationTimeout = TimeSpan.FromSeconds(15);
     static Guid AdvancedProcessing = new("0f81da2c-b537-4672-a8b2-a681b17307a3"), DurationKey = new("6c990d33-bb8e-477a-8598-0d5d96fcd88a"),
         MajorTypeKey = new("48eba18e-f8c9-4687-bf11-0a74c9f96a8f"), SubtypeKey = new("f7e34c9a-42e8-4714-b74b-cb29d72c35e5"),
         FrameSizeKey = new("1652c33d-d6b2-4012-b834-72030849a37d"), StrideKey = new("644b4e48-1e02-4516-b0eb-c01ca9d49ac6"),
         VideoType = new("73646976-0000-0010-8000-00aa00389b71"), Rgb32 = new("00000016-0000-0010-8000-00aa00389b71");
 
-    public static Task<VideoFrameSamples> SampleForClassificationAsync(string path, CancellationToken token = default)
+    public static async Task<VideoFrameSamples> SampleForClassificationAsync(string path, CancellationToken token = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path); token.ThrowIfCancellationRequested();
-        return Task.Run(() => Sample(Path.GetFullPath(path), token, false), token);
+        try
+        {
+            return await Task.Run(() => Sample(Path.GetFullPath(path), token, false), token).WaitAsync(OperationTimeout, token);
+        }
+        catch (TimeoutException ex)
+        {
+            throw new VideoDecodeException(VideoDecodeCode.VideoDecodeTimeout, $"Video decoding exceeded the {OperationTimeout.TotalSeconds:0}-second operation timeout.", innerException: ex);
+        }
     }
 
     /// <summary>Gets one in-memory representative frame for UI previews; no frame is written to disk.</summary>
@@ -193,7 +201,7 @@ public static class VideoFrameSampler
 
 public enum VideoDecodeCode { VideoNoDecoder, VideoUnsupported, VideoNoVideoStream, VideoDecodeFailed, VideoDecodeTimeout }
 public sealed record VideoFrameDiagnostic(TimeSpan? Duration, TimeSpan Requested, TimeSpan? Actual, int Width, int Height, TimeSpan DecodeTime, VideoDecodeCode? Code, string Result);
-public sealed class VideoDecodeException(VideoDecodeCode code, string message, int? hresult = null, IReadOnlyList<VideoFrameDiagnostic>? diagnostics = null) : Exception(message)
+public sealed class VideoDecodeException(VideoDecodeCode code, string message, int? hresult = null, IReadOnlyList<VideoFrameDiagnostic>? diagnostics = null, Exception? innerException = null) : Exception(message, innerException)
 {
     public VideoDecodeCode Code { get; } = code; public IReadOnlyList<VideoFrameDiagnostic> Diagnostics { get; } = diagnostics ?? [];
     public override string ToString() => hresult is { } hr ? $"{Code}: {Message} (0x{hr:X8})" : $"{Code}: {Message}";

@@ -21,9 +21,15 @@ public sealed record TriageSelection(
     public int SelectedFindings => FindingIds.Count;
 }
 
+public sealed record TriagePreparationProgress(int Completed, int Total)
+{
+    public double Fraction => Total == 0 ? 0 : Math.Clamp(Completed / (double)Total, 0, 1);
+}
+
 public sealed class TriageRouter
 {
-    public const int DefaultAbsoluteLimit = 25_000;
+    public const int DefaultAbsoluteLimit = 50_000;
+    public const double DefaultSelectionFraction = 0.05;
     static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
         { ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".avif" };
     static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -39,7 +45,7 @@ public sealed class TriageRouter
 
     public IReadOnlyList<TriageRouteDecision> Route(Finding finding, MediaImageDimensions? dimensions = null)
     {
-        if (finding.Ignored || finding.IsDirectory || string.IsNullOrWhiteSpace(finding.Path) || !File.Exists(finding.Path)) return [];
+        if (finding.Ignored || finding.IsDirectory || string.IsNullOrWhiteSpace(finding.Path)) return [];
         var ext = Path.GetExtension(finding.Path);
         var text = $"{finding.DisplayName} {finding.Path}";
         var baseScore = 25 + Math.Min(25, finding.ExposureScore / 4);
@@ -97,18 +103,18 @@ public sealed class TriageRouter
         return routes;
     }
 
-    public TriageSelection Select(IReadOnlyList<Finding> findings, int absoluteLimit = DefaultAbsoluteLimit)
+    public TriageSelection Select(IReadOnlyList<Finding> findings, int absoluteLimit = DefaultAbsoluteLimit, CancellationToken token = default, IProgress<TriagePreparationProgress>? progress = null)
     {
         var routes = new List<TriageRouteDecision>();
-        foreach (var finding in findings)
+        for (var index = 0; index < findings.Count; index++)
         {
-            MediaImageDimensions? dimensions = null;
-            if (finding.Category.Equals("Images", StringComparison.OrdinalIgnoreCase) && MediaImageInfo.TryReadDimensions(finding.Path, out var read)) dimensions = read;
-            routes.AddRange(Route(finding, dimensions));
+            token.ThrowIfCancellationRequested();
+            routes.AddRange(Route(findings[index]));
+            if ((index & 255) == 0 || index + 1 == findings.Count) progress?.Report(new(index + 1, findings.Count));
         }
 
         var eligible = routes.Select(route => route.FindingId).Distinct().Count();
-        var requested = eligible == 0 ? 0 : Math.Max(1, (int)Math.Ceiling(eligible * 0.10));
+        var requested = eligible == 0 ? 0 : Math.Max(1, (int)Math.Ceiling(eligible * DefaultSelectionFraction));
         var uniqueLimit = Math.Min(requested, Math.Max(1, absoluteLimit));
         var costBudget = Math.Max(uniqueLimit * 24, 1);
         if (uniqueLimit == 0) return new([], [], 0, 0, absoluteLimit, 0);
@@ -122,6 +128,7 @@ public sealed class TriageRouter
 
         while (queues.Count > 0 && selectedIds.Count < uniqueLimit)
         {
+            token.ThrowIfCancellationRequested();
             var progressed = false;
             foreach (var scanner in queues.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray())
             {
@@ -145,14 +152,13 @@ public sealed class TriageRouter
             if (!progressed) break;
         }
 
-        // Once the diverse unique scope is fixed, attach every applicable route that still fits the operation budget.
+        // The budget selects unique objects. Once an object is selected, run every applicable
+        // scanner so the priority pass does not trade away evidence completeness for that object.
         foreach (var route in routes.Where(route => selectedIds.Contains(route.FindingId)).OrderByDescending(route => route.Priority))
         {
+            token.ThrowIfCancellationRequested();
             if (!selectedPairs.Add((route.FindingId, route.ScannerId))) continue;
-            var cost = (int)route.Cost;
-            if (spent + cost > costBudget) continue;
             selectedRoutes.Add(route);
-            spent += cost;
         }
 
         return new(selectedIds.ToArray(), selectedRoutes, eligible, requested, absoluteLimit, costBudget);

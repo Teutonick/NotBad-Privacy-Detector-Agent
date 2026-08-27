@@ -18,8 +18,14 @@
         <TextBlock Text="{local:Loc AccuracyDisclaimer}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,6,0,0"/>
         <StackPanel x:Name="PriorityWizardReadyPanel">
           <TextBlock x:Name="PriorityWizardReadyText" TextWrapping="Wrap" Foreground="#C8D4E8" FontSize="14" LineHeight="21" Margin="0,8,0,14"/>
+          <ProgressBar x:Name="PriorityWizardPreparationProgress" Height="8" Minimum="0" Maximum="1" Margin="0,0,0,8" Visibility="Collapsed"/>
+          <TextBlock x:Name="PriorityWizardPreparationProgressText" Style="{StaticResource MutedText}" Margin="0,0,0,10" Visibility="Collapsed"/>
           <TextBlock x:Name="PriorityWizardPlanText" Foreground="#9FE6B0" TextWrapping="Wrap" Margin="0,0,0,14"/>
-          <Button x:Name="PriorityWizardStartButton" Style="{StaticResource PrimaryButton}" Click="PriorityWizardStart_Click" Content="{local:Loc PriorityWizardStart}" Background="#1FFF9F0A" Foreground="#FFD36A" BorderBrush="#FF9F0A" FontWeight="SemiBold" HorizontalAlignment="Left" ToolTip="{local:Loc PriorityWizardStartHelp}"/>
+          <WrapPanel>
+            <Button x:Name="PriorityWizardPrepareButton" Style="{StaticResource PrimaryButton}" Click="PriorityWizardPrepare_Click" Content="{local:Loc PriorityWizardPrepare}" HorizontalAlignment="Left" ToolTip="{local:Loc PriorityWizardPrepareHelp}" Visibility="Collapsed"/>
+            <Button x:Name="PriorityWizardCancelPreparationButton" Click="PriorityWizardCancelPreparation_Click" Content="{local:Loc PriorityWizardCancelPreparation}" HorizontalAlignment="Left" ToolTip="{local:Loc PriorityWizardCancelPreparationHelp}" Visibility="Collapsed"/>
+            <Button x:Name="PriorityWizardStartButton" Style="{StaticResource PrimaryButton}" Click="PriorityWizardStart_Click" Content="{local:Loc PriorityWizardStart}" Background="#1FFF9F0A" Foreground="#FFD36A" BorderBrush="#FF9F0A" FontWeight="SemiBold" HorizontalAlignment="Left" ToolTip="{local:Loc PriorityWizardStartHelp}"/>
+          </WrapPanel>
         </StackPanel>
         <StackPanel x:Name="PriorityWizardRunningPanel" Visibility="Collapsed">
           <TextBlock x:Name="PriorityWizardStageText" TextWrapping="Wrap" Foreground="#C8D4E8" Margin="0,8,0,8"/>
@@ -86,7 +92,7 @@
         <ComboBox x:Name="PriorityReportRiskFilter" Width="155" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc RiskFilterHelp}"><ComboBoxItem Content="{local:Loc AllRisks}" Tag="All" IsSelected="True"/><ComboBoxItem Content="{local:Loc Critical}" Tag="Critical"/><ComboBoxItem Content="{local:Loc High}" Tag="High"/><ComboBoxItem Content="{local:Loc Medium}" Tag="Medium"/><ComboBoxItem Content="{local:Loc Low}" Tag="Low"/></ComboBox>
         <ComboBox x:Name="PriorityReportCategoryFilter" Width="180" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc CategoryFilterHelp}"/>
         <ComboBox x:Name="PriorityReportStatusFilter" Width="190" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc PriorityReportStatusHelp}"><ComboBoxItem Content="{local:Loc PriorityReportConfirmed}" Tag="Confirmed" IsSelected="True"/><ComboBoxItem Content="{local:Loc PriorityReportAllResearched}" Tag="All"/><ComboBoxItem Content="{local:Loc PriorityReportClear}" Tag="Clear"/><ComboBoxItem Content="{local:Loc PriorityReportErrors}" Tag="Errors"/></ComboBox>
-        <ComboBox x:Name="PriorityReportSortFilter" Width="180" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc PriorityReportSortHelp}"><ComboBoxItem Content="{local:Loc PriorityReportDetectionSort}" Tag="Detection" IsSelected="True"/><ComboBoxItem Content="{local:Loc PrivacyRisk}" Tag="Privacy"/><ComboBoxItem Content="{local:Loc Modified}" Tag="Modified"/></ComboBox>
+        <ComboBox x:Name="PriorityReportSortFilter" Width="180" Margin="0,0,8,8" SelectionChanged="PriorityReportFilter_Changed" ToolTip="{local:Loc PriorityReportSortHelp}"><ComboBoxItem Content="{local:Loc PrivacyRisk}" Tag="Privacy" IsSelected="True"/><ComboBoxItem Content="{local:Loc PriorityReportDetectionSort}" Tag="Detection"/><ComboBoxItem Content="{local:Loc Modified}" Tag="Modified"/></ComboBox>
         <TextBox x:Name="PriorityReportSearchBox" Width="210" Height="34" Margin="0,0,8,8" TextChanged="PriorityReportSearch_Changed" ToolTip="{local:Loc SearchBoxHelp}"/>
         <StackPanel x:Name="PriorityReportImageModeControls" Orientation="Horizontal" Visibility="Collapsed" Margin="0,0,8,8">
           <Button x:Name="PriorityReportViewToggle" Click="TogglePriorityReportView_Click" Content="{local:Loc TileView}" Padding="12,7" ToolTip="{local:Loc TileViewHelp}"/>

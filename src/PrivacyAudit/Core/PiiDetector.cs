@@ -224,7 +224,7 @@ public static class PiiDetector
             {
                 foreach (Match m in IpRegex.Matches(text))
                 {
-                    if (!m.Value.StartsWith("127.", StringComparison.Ordinal) && m.Value != "0.0.0.0" && m.Value != "255.255.255.255")
+                    if (IsLikelyPersonalIpv4(m.Value))
                     {
                         matches.Add(new PiiMatchItem("IP", m.Value, 0.80));
                         foundCategories.Add("IP");
@@ -274,6 +274,15 @@ public static class PiiDetector
         }
 
         return result;
+    }
+
+    internal static bool IsLikelyPersonalIpv4(string value)
+    {
+        var octets = value.Split('.');
+        if (octets.Length != 4 || octets.Count(octet => octet.Length >= 2) < 2) return false;
+        if (!octets.All(octet => byte.TryParse(octet, out _))) return false;
+        if (octets[0] == "0" || octets[0] == "127" || value is "255.255.255.255") return false;
+        return true;
     }
 
     public static bool IsValidLuhn(string number)

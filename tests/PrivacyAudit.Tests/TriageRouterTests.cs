@@ -60,13 +60,13 @@ public sealed class TriageRouterTests
     }
 
     [Fact]
-    public void SelectionUsesTenPercentAndAbsoluteCap()
+    public void SelectionUsesFivePercentAndAbsoluteCap()
     {
         var root = Path.Combine(Path.GetTempPath(), $"triage-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
         try
         {
-            var findings = Enumerable.Range(0, 100).Select(index =>
+            var findings = Enumerable.Range(0, 200).Select(index =>
             {
                 var path = Path.Combine(root, $"config-{index}.json");
                 File.WriteAllText(path, "{}");
@@ -75,12 +75,51 @@ public sealed class TriageRouterTests
 
             var selection = new TriageRouter().Select(findings, absoluteLimit: 7);
 
-            Assert.Equal(100, selection.EligibleFindings);
+            Assert.Equal(200, selection.EligibleFindings);
             Assert.Equal(10, selection.RequestedTenPercent);
             Assert.Equal(7, selection.SelectedFindings);
             Assert.All(selection.Routes, route => Assert.Contains(route.FindingId, selection.FindingIds));
         }
         finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void SelectedImagesKeepEveryApplicableDeepScannerRoute()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"triage-images-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var findings = Enumerable.Range(0, 50).Select(index =>
+            {
+                var path = Path.Combine(root, $"photo-{index}.jpg");
+                File.WriteAllBytes(path, [0]);
+                return new Finding { Path = path, DisplayName = Path.GetFileName(path), Category = "Images", SizeBytes = 1, ExposureScore = index };
+            }).ToArray();
+
+            var selection = new TriageRouter().Select(findings);
+
+            Assert.Equal(3, selection.SelectedFindings);
+            foreach (var findingId in selection.FindingIds)
+            {
+                var scannerIds = selection.Routes.Where(route => route.FindingId == findingId).Select(route => route.ScannerId).ToHashSet();
+                Assert.Contains(DetectionEvidenceCalculator.People, scannerIds);
+                Assert.Contains(DetectionEvidenceCalculator.Documents, scannerIds);
+                Assert.Contains(DetectionEvidenceCalculator.ImageSafety, scannerIds);
+                Assert.Contains(DetectionEvidenceCalculator.Exif, scannerIds);
+            }
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void CandidateSelectionHonorsCancellation()
+    {
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() => new TriageRouter().Select(
+            [new Finding { Path = "unused", DisplayName = "unused" }], token: source.Token));
     }
 
     [Fact]
@@ -139,6 +178,23 @@ public sealed class TriageRouterTests
             Assert.Null(store.Load());
         }
         finally { store.Delete(); }
+    }
+
+    [Fact]
+    public void LegacyPrioritySessionLoadsWithOldSelectionPolicy()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"priority-session-{Guid.NewGuid():N}.json");
+        try
+        {
+            File.WriteAllText(path, "{\"auditFingerprint\":\"audit\",\"status\":2}");
+
+            var restored = new PriorityAuditSessionStore(path).Load();
+
+            Assert.NotNull(restored);
+            Assert.Equal(0, restored!.SelectionPolicyVersion);
+            Assert.True(restored.SelectionPolicyVersion < PriorityAuditSession.CurrentSelectionPolicyVersion);
+        }
+        finally { File.Delete(path); }
     }
 
     [Fact]

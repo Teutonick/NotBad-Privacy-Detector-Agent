@@ -4,7 +4,7 @@ namespace PrivacyAudit.PeopleDetection;
 
 public sealed class ImageSafetyScanner(ModelManager modelManager, ImageSafetyRepository repository)
 {
-    public async Task<IReadOnlyList<ImageSafetyScanResult>> ScanAsync(IEnumerable<Finding> findings, bool forceRescan = false, IProgress<ImageSafetyScanProgress>? progress = null, CancellationToken token = default)
+    public async Task<IReadOnlyList<ImageSafetyScanResult>> ScanAsync(IEnumerable<Finding> findings, bool forceRescan = false, IProgress<ImageSafetyScanProgress>? progress = null, CancellationToken token = default, Action<ImageSafetyScanResult>? onResult = null)
     {
         var files = findings.Where(x => x.Category is "Images" or "Video").ToArray();
         // GetVerifiedModelPath() checks SHA-256 synchronously; throws if not InstalledVerified.
@@ -38,7 +38,7 @@ public sealed class ImageSafetyScanner(ModelManager modelManager, ImageSafetyRep
                     }); }
                 catch (Exception ex) { modelManager.LogScanError("Image Safety", finding.Path, ex); result = Error(finding.Path, file.Length, file.LastWriteTime, modelManager.Manifest.ModelVersion, ex.Message); }
             }
-            await Task.Run(() => repository.Upsert(result), token); results.Add(result);
+            await Task.Run(() => repository.Upsert(result), token); results.Add(result); onResult?.Invoke(result);
             if (result.PrimaryClass == ImageSafetyClass.NSFW && result.Status == ImageSafetyScanStatus.Completed) nsfw++;
             if (result.PrimaryClass == ImageSafetyClass.NSFL && result.Status == ImageSafetyScanStatus.Completed) nsfl++;
             if (result.Status == ImageSafetyScanStatus.Error) errors++;

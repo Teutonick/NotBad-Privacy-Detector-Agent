@@ -6,6 +6,7 @@ public enum PriorityAuditStatus { Ready, Running, Paused, Completed, Canceled }
 
 public sealed class PriorityAuditSession
 {
+    public const int CurrentSelectionPolicyVersion = 3;
     public Guid SessionId { get; set; } = Guid.NewGuid();
     public string AuditFingerprint { get; set; } = "";
     public PriorityAuditStatus Status { get; set; } = PriorityAuditStatus.Ready;
@@ -17,6 +18,8 @@ public sealed class PriorityAuditSession
     public HashSet<string> SkippedRoutes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<string> FailedRoutes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public int EligibleFindings { get; set; }
+    public int SelectionPolicyVersion { get; set; }
+    // Kept for backward-compatible loading of existing local session JSON.
     public int RequestedTenPercent { get; set; }
     public int ConfirmedSignals { get; set; }
     public int Errors { get; set; }

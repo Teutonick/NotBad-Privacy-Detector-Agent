@@ -93,6 +93,16 @@ Telegram: @ivan_tech, link: https://t.me/ivan_tech";
     }
 
     [Fact]
+    public void PiiScan_RejectsVersionLikeIpv4ButKeepsPlausibleAddresses()
+    {
+        var result = PiiDetector.Scan("versions 0.1.0.0 2.0.0.0; hosts 192.168.1.25 172.16.0.10");
+
+        Assert.DoesNotContain(result.Matches, x => x.Category == "IP" && x.Sample is "0.1.0.0" or "2.0.0.0");
+        Assert.Contains(result.Matches, x => x.Category == "IP" && x.Sample == "192.168.1.25");
+        Assert.Contains(result.Matches, x => x.Category == "IP" && x.Sample == "172.16.0.10");
+    }
+
+    [Fact]
     public void PiiResult_LegacyBirthDatesAreRemovedWhenMetadataIsRead()
     {
         const string metadata = """{"pii_scan":{"status":"completed","total_matches":2,"categories":["BirthDate","Email"],"matches":[{"category":"BirthDate","sample":"20.04.2026","confidence":0.75},{"category":"Email","sample":"user@example.com","confidence":0.95}]}}""";

@@ -4,7 +4,7 @@ namespace PrivacyAudit.PeopleDetection;
 
 public sealed class PeopleScanner(ModelManager modelManager, PeopleScanRepository repository)
 {
-    public async Task<IReadOnlyList<PeopleScanResult>> ScanAsync(IEnumerable<Finding> mediaFindings, IProgress<PeopleScanProgress>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<PeopleScanResult>> ScanAsync(IEnumerable<Finding> mediaFindings, IProgress<PeopleScanProgress>? progress = null, CancellationToken cancellationToken = default, Action<PeopleScanResult>? onResult = null)
     {
         var files = mediaFindings.Where(x => x.Category is "Images" or "Video").ToArray();
         // GetVerifiedModelPath() checks SHA-256 synchronously; throws if not InstalledVerified.
@@ -22,7 +22,7 @@ public sealed class PeopleScanner(ModelManager modelManager, PeopleScanRepositor
             if (!file.Exists)
             {
                 var missing = Error(finding.Path, finding.SizeBytes, finding.ModifiedAt ?? DateTime.MinValue, modelManager.Manifest.ModelVersion, "File is no longer available.");
-                await Task.Run(() => repository.Upsert(missing), cancellationToken); results.Add(missing); errors++; completed++;
+                await Task.Run(() => repository.Upsert(missing), cancellationToken); results.Add(missing); onResult?.Invoke(missing); errors++; completed++;
                 progress?.Report(new(finding.Path, completed, files.Length, people, errors, missing.Error));
                 continue;
             }
@@ -30,7 +30,7 @@ public sealed class PeopleScanner(ModelManager modelManager, PeopleScanRepositor
             var cached = await Task.Run(() => repository.FindReusable(finding.Path, file.Length, file.LastWriteTime, modelManager.Manifest.ModelVersion), cancellationToken);
             if (cached is not null)
             {
-                results.Add(cached); completed++; if (cached.PeopleDetected) people++; if (cached.Status == PeopleScanStatus.Error) errors++;
+                results.Add(cached); onResult?.Invoke(cached); completed++; if (cached.PeopleDetected) people++; if (cached.Status == PeopleScanStatus.Error) errors++;
                 progress?.Report(new(finding.Path, completed, files.Length, people, errors, "Cached"));
                 continue;
             }
@@ -55,7 +55,7 @@ public sealed class PeopleScanner(ModelManager modelManager, PeopleScanRepositor
                 };
                 result = Error(finding.Path, file.Length, file.LastWriteTime, modelManager.Manifest.ModelVersion, message);
             }
-            await Task.Run(() => repository.Upsert(result), cancellationToken); results.Add(result); completed++; if (result.PeopleDetected) people++; if (result.Status == PeopleScanStatus.Error) errors++;
+            await Task.Run(() => repository.Upsert(result), cancellationToken); results.Add(result); onResult?.Invoke(result); completed++; if (result.PeopleDetected) people++; if (result.Status == PeopleScanStatus.Error) errors++;
             progress?.Report(new(finding.Path, completed, files.Length, people, errors, result.Error));
         }
         return results;

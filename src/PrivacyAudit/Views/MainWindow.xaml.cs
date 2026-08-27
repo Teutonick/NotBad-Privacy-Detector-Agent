@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
@@ -124,6 +125,8 @@ public partial class MainWindow : Window
     bool _imageSafetyScanCancelRequested;
     PriorityAuditSession? _priorityAuditSession;
     bool _priorityReportTileMode;
+    CancellationTokenSource? _priorityPreparationCts;
+    bool _priorityPreparationQueued;
     CancellationTokenSource? _priorityAuditCts;
     bool _priorityAuditPauseRequested;
     int _priorityWizardPreparationVersion;
@@ -182,6 +185,10 @@ public partial class MainWindow : Window
             }
             Dispatcher.InvokeAsync(() =>
             {
+                lock (_heavyTaskLock)
+                {
+                    if (_activeHeavyTaskName is not null || _activeMediaTaskCount > 0) return;
+                }
                 ClearCancellationProgress();
                 SetGlobalScanControlsEnabled(true);
                 SidebarFooterControl.SetGlobalBusy(false);
@@ -265,6 +272,8 @@ public partial class MainWindow : Window
         if (DownloadNsfwModelButton is not null) DownloadNsfwModelButton.IsEnabled = enabled;
         if (RemoveNsfwModelButton is not null) RemoveNsfwModelButton.IsEnabled = enabled;
         if (ApplicationHistoryAnalyzeButton is not null) ApplicationHistoryAnalyzeButton.IsEnabled = enabled && _auditAvailableForApplicationHistory;
+        if (PriorityWizardPrepareButton is not null) PriorityWizardPrepareButton.IsEnabled = enabled;
+        if (PriorityWizardStartButton is not null) PriorityWizardStartButton.IsEnabled = enabled && _priorityAuditSession?.Status != PriorityAuditStatus.Running;
     }
 
     void RequestCancellation(CancellationTokenSource? source, bool showGlobalProgress = true)
@@ -526,7 +535,7 @@ public partial class MainWindow : Window
             findings[i].PersonalAttentionLabel = rating?.Label;
             findings[i].PersonalAttentionScore = scores[i];
         }
-        var media = findings.Where(x => (x.Category is "Images" or "Video") && File.Exists(x.Path))
+        var media = findings.Where(x => x.Category is "Images" or "Video")
             .OrderByDescending(PrivacyRadarRanking.Score)
             .ThenByDescending(x => x.ModifiedAt ?? DateTime.MinValue)
             .ToArray();
@@ -557,7 +566,7 @@ public partial class MainWindow : Window
 
     void EnsureIdleOverviewInteractions()
     {
-        if (_restoreCts is not null || _priorityAuditCts is not null || _cts is not null) return;
+        if (_restoreCts is not null || _priorityPreparationCts is not null || _priorityAuditCts is not null || _cts is not null) return;
         _restoreInteractionsLocked = false;
         _priorityInteractionsLocked = false;
         ApplyMainInteractionLocks();
@@ -619,7 +628,28 @@ public partial class MainWindow : Window
         PreviousAuditFindingsText.Text = string.Format(LocalizationService.Get("PreviousAuditFindings"), snapshot.Findings.Count);
         PreviousAuditEnrichmentText.Text = LocalizationService.Get("RadarSummaryPreparing");
         UpdatePreviousAuditEnrichmentAsync(snapshot.Findings.ToArray());
-        _ = PreparePriorityWizardAsync();
+        _ = QueuePriorityWizardPreparationAsync();
+    }
+
+    async Task QueuePriorityWizardPreparationAsync()
+    {
+        if (_priorityPreparationQueued || _priorityPreparationCts is not null) return;
+        _priorityPreparationQueued = true;
+        var generation = _priorityWizardPreparationVersion;
+        try
+        {
+            while (true)
+            {
+                bool busy;
+                lock (_heavyTaskLock) busy = _activeHeavyTaskName is not null || _activeMediaTaskCount > 0;
+                if (!busy) break;
+                await Task.Delay(50);
+                if (!IsLoaded || generation != _priorityWizardPreparationVersion || _findings.Count == 0) return;
+            }
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+            if (IsLoaded && generation == _priorityWizardPreparationVersion) await PreparePriorityWizardAsync();
+        }
+        finally { _priorityPreparationQueued = false; }
     }
 
     async void UpdatePreviousAuditEnrichmentAsync(Finding[] findings)
@@ -675,6 +705,7 @@ public partial class MainWindow : Window
         SkippedRoutes = new(source.SkippedRoutes, StringComparer.OrdinalIgnoreCase),
         FailedRoutes = new(source.FailedRoutes, StringComparer.OrdinalIgnoreCase),
         EligibleFindings = source.EligibleFindings,
+        SelectionPolicyVersion = source.SelectionPolicyVersion,
         RequestedTenPercent = source.RequestedTenPercent,
         ConfirmedSignals = source.ConfirmedSignals,
         Errors = source.Errors,
@@ -706,10 +737,11 @@ public partial class MainWindow : Window
 
     async Task PreparePriorityWizardAsync()
     {
-        if (_findings.Count == 0 || _priorityAuditCts is not null) return;
+        if (!IsLoaded || _findings.Count == 0 || _priorityAuditCts is not null || _priorityPreparationCts is not null) return;
         var preparationVersion = ++_priorityWizardPreparationVersion;
         var fingerprint = CurrentAuditFingerprint();
-        if (_priorityAuditSession is not null && AuditIdentity.Matches(_priorityAuditSession.AuditFingerprint, fingerprint, _auditContext))
+        if (_priorityAuditSession is not null && AuditIdentity.Matches(_priorityAuditSession.AuditFingerprint, fingerprint, _auditContext)
+            && (_priorityAuditSession.Status == PriorityAuditStatus.Completed || _priorityAuditSession.SelectionPolicyVersion >= PriorityAuditSession.CurrentSelectionPolicyVersion))
         {
             var needsMigration = !string.Equals(_priorityAuditSession.AuditFingerprint, fingerprint, StringComparison.Ordinal);
             _priorityAuditSession.AuditFingerprint = fingerprint;
@@ -725,7 +757,8 @@ public partial class MainWindow : Window
         }
 
         var restored = _priorityAuditStore.Load();
-        if (restored is not null && AuditIdentity.Matches(restored.AuditFingerprint, fingerprint, _auditContext))
+        if (restored is not null && AuditIdentity.Matches(restored.AuditFingerprint, fingerprint, _auditContext)
+            && (restored.Status == PriorityAuditStatus.Completed || restored.SelectionPolicyVersion >= PriorityAuditSession.CurrentSelectionPolicyVersion))
         {
             var needsMigration = !string.Equals(restored.AuditFingerprint, fingerprint, StringComparison.Ordinal);
             _priorityAuditSession = restored;
@@ -750,31 +783,64 @@ public partial class MainWindow : Window
         }
 
         _priorityAuditSession = null;
-        ShowPriorityWizardPreparingState();
-        PriorityWizardReadyText.Text = LocalizationService.Get("MediaScanPreparingFiles");
-        PriorityWizardPlanText.Text = "";
-        var findings = _findings.ToArray();
-        var selection = await Task.Run(() => new TriageRouter().Select(findings));
-        if (!IsLoaded || preparationVersion != _priorityWizardPreparationVersion || fingerprint != CurrentAuditFingerprint()) return;
-        if (selection.SelectedFindings == 0)
+        var guard = TryAcquireHeavyTask(LocalizationService.Get("PriorityWizardPreparingTitle"));
+        if (guard is null)
         {
-            PriorityAuditWizardPanel.Visibility = Visibility.Collapsed;
-            PrivacyRadarIntroPanel.Visibility = Visibility.Visible;
+            ShowPriorityWizardPreparationAvailableState(false);
             return;
         }
-
-        _priorityAuditSession = new PriorityAuditSession
+        _priorityPreparationCts = new CancellationTokenSource();
+        var token = _priorityPreparationCts.Token;
+        ShowPriorityWizardPreparingState();
+        PriorityWizardReadyText.Text = LocalizationService.Get("PriorityWizardPreparing");
+        PriorityWizardPlanText.Text = "";
+        try
         {
-            AuditFingerprint = fingerprint,
-            FindingIds = selection.FindingIds.ToList(),
-            Routes = selection.Routes.ToList(),
-            EligibleFindings = selection.EligibleFindings,
-            RequestedTenPercent = selection.RequestedTenPercent
-        };
-        _priorityAuditStore.Save(_priorityAuditSession);
-        UpdatePriorityWizardPresentation();
-        RefreshPriorityReportCategories();
-        EnsureIdleOverviewInteractions();
+            var findings = _findings.ToArray();
+            var progress = new Progress<TriagePreparationProgress>(value =>
+            {
+                PriorityWizardPreparationProgress.Value = value.Fraction;
+                PriorityWizardPreparationProgressText.Text = string.Format(LocalizationService.Get("PriorityWizardPreparationProgress"), value.Completed, value.Total);
+            });
+            var selection = await Task.Run(() => new TriageRouter().Select(findings, token: token, progress: progress), token);
+            token.ThrowIfCancellationRequested();
+            if (!IsLoaded || preparationVersion != _priorityWizardPreparationVersion || fingerprint != CurrentAuditFingerprint()) return;
+            if (selection.SelectedFindings == 0)
+            {
+                PriorityAuditWizardPanel.Visibility = Visibility.Collapsed;
+                PrivacyRadarIntroPanel.Visibility = Visibility.Visible;
+                return;
+            }
+
+            _priorityAuditSession = new PriorityAuditSession
+            {
+                AuditFingerprint = fingerprint,
+                FindingIds = selection.FindingIds.ToList(),
+                Routes = selection.Routes.ToList(),
+                EligibleFindings = selection.EligibleFindings,
+                SelectionPolicyVersion = PriorityAuditSession.CurrentSelectionPolicyVersion,
+                RequestedTenPercent = selection.RequestedTenPercent
+            };
+            _priorityAuditStore.Save(_priorityAuditSession);
+            UpdatePriorityWizardPresentation();
+            RefreshPriorityReportCategories();
+            EnsureIdleOverviewInteractions();
+        }
+        catch (OperationCanceledException)
+        {
+            if (preparationVersion == _priorityWizardPreparationVersion) ShowPriorityWizardPreparationAvailableState(true);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.LogException(ex, "Priority candidate preparation");
+            if (preparationVersion == _priorityWizardPreparationVersion) ShowPriorityWizardPreparationAvailableState(false);
+        }
+        finally
+        {
+            _priorityPreparationCts?.Dispose();
+            _priorityPreparationCts = null;
+            guard.Dispose();
+        }
     }
 
     void ShowPriorityWizardPreparingState()
@@ -785,6 +851,15 @@ public partial class MainWindow : Window
         PriorityWizardRunningPanel.Visibility = Visibility.Collapsed;
         PriorityWizardCompletePanel.Visibility = Visibility.Collapsed;
         PriorityWizardStartButton.IsEnabled = false;
+        PriorityWizardStartButton.Visibility = Visibility.Collapsed;
+        PriorityWizardPrepareButton.Visibility = Visibility.Collapsed;
+        PriorityWizardCancelPreparationButton.Visibility = Visibility.Visible;
+        PriorityWizardCancelPreparationButton.IsEnabled = true;
+        PriorityWizardPreparationProgress.Visibility = Visibility.Visible;
+        PriorityWizardPreparationProgress.IsIndeterminate = false;
+        PriorityWizardPreparationProgress.Value = 0;
+        PriorityWizardPreparationProgressText.Visibility = Visibility.Visible;
+        PriorityWizardPreparationProgressText.Text = string.Format(LocalizationService.Get("PriorityWizardPreparationProgress"), 0, _findings.Count);
         PriorityWizardReportButton.IsEnabled = false;
         PriorityWizardReportButton.IsHitTestVisible = false;
         PriorityWizardFullReportButton.IsEnabled = false;
@@ -794,6 +869,23 @@ public partial class MainWindow : Window
         _sortedPriorityFindings = [];
         _priorityReportPage = 0;
         UpdatePriorityPartialHints();
+    }
+
+    void ShowPriorityWizardPreparationAvailableState(bool canceled)
+    {
+        PriorityAuditWizardPanel.Visibility = Visibility.Visible;
+        PrivacyRadarIntroPanel.Visibility = Visibility.Collapsed;
+        PriorityWizardReadyPanel.Visibility = Visibility.Visible;
+        PriorityWizardRunningPanel.Visibility = Visibility.Collapsed;
+        PriorityWizardCompletePanel.Visibility = Visibility.Collapsed;
+        PriorityWizardReadyText.Text = LocalizationService.Get(canceled ? "PriorityWizardPreparationCanceled" : "PriorityWizardPreparationReady");
+        PriorityWizardPlanText.Text = "";
+        PriorityWizardPrepareButton.Visibility = Visibility.Visible;
+        PriorityWizardPrepareButton.IsEnabled = true;
+        PriorityWizardCancelPreparationButton.Visibility = Visibility.Collapsed;
+        PriorityWizardStartButton.Visibility = Visibility.Collapsed;
+        PriorityWizardPreparationProgress.Visibility = Visibility.Collapsed;
+        PriorityWizardPreparationProgressText.Visibility = Visibility.Collapsed;
     }
 
     void UpdatePriorityWizardPresentation()
@@ -812,6 +904,11 @@ public partial class MainWindow : Window
         PriorityWizardRunningPanel.Visibility = session.Status == PriorityAuditStatus.Running ? Visibility.Visible : Visibility.Collapsed;
         PriorityWizardCompletePanel.Visibility = session.HasReport ? Visibility.Visible : Visibility.Collapsed;
         PriorityWizardStartButton.IsEnabled = session.Status != PriorityAuditStatus.Running;
+        PriorityWizardStartButton.Visibility = Visibility.Visible;
+        PriorityWizardPrepareButton.Visibility = Visibility.Collapsed;
+        PriorityWizardCancelPreparationButton.Visibility = Visibility.Collapsed;
+        PriorityWizardPreparationProgress.Visibility = Visibility.Collapsed;
+        PriorityWizardPreparationProgressText.Visibility = Visibility.Collapsed;
         PriorityWizardStartButton.Content = LocalizationService.Get(session.Status is PriorityAuditStatus.Paused or PriorityAuditStatus.Canceled ? "PriorityWizardContinue" : "PriorityWizardStart");
 
         PriorityWizardReadyText.Text = session.Status switch
@@ -820,7 +917,7 @@ public partial class MainWindow : Window
             PriorityAuditStatus.Canceled => LocalizationService.Get("PriorityWizardCanceled"),
             _ => string.Format(LocalizationService.Get("PriorityWizardReady"), session.FindingIds.Count, session.EligibleFindings)
         };
-        PriorityWizardPlanText.Text = string.Format(LocalizationService.Get("PriorityWizardPlan"), session.TotalRoutes, session.Routes.Select(route => route.ScannerId).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        PriorityWizardPlanText.Text = string.Format(LocalizationService.Get("PriorityWizardPlanV2"), session.TotalRoutes, session.Routes.Select(route => route.ScannerId).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         PriorityWizardProgress.Value = session.Progress;
         PriorityWizardProgressText.Text = string.Format(LocalizationService.Get("PriorityWizardProgress"), session.Progress, session.CompletedRouteCount, session.TotalRoutes, session.ConfirmedSignals, session.Errors);
         PriorityWizardCompleteText.Text = string.Format(LocalizationService.Get("PriorityWizardComplete"), session.FindingIds.Count, session.ConfirmedSignals, session.Errors);
@@ -837,6 +934,16 @@ public partial class MainWindow : Window
     {
         _priorityInteractionsLocked = !enabled;
         ApplyMainInteractionLocks();
+    }
+
+    async void PriorityWizardPrepare_Click(object sender, RoutedEventArgs e) => await PreparePriorityWizardAsync();
+
+    void PriorityWizardCancelPreparation_Click(object sender, RoutedEventArgs e)
+    {
+        if (_priorityPreparationCts is null) return;
+        PriorityWizardCancelPreparationButton.IsEnabled = false;
+        PriorityWizardReadyText.Text = LocalizationService.Get("PriorityWizardPreparationCanceling");
+        RequestCancellation(_priorityPreparationCts, showGlobalProgress: false);
     }
 
     async void PriorityWizardStart_Click(object sender, RoutedEventArgs e)
@@ -966,7 +1073,7 @@ public partial class MainWindow : Window
         var risk = (PriorityReportRiskFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
         var category = (PriorityReportCategoryFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
         var status = (PriorityReportStatusFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Confirmed";
-        var sort = (PriorityReportSortFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Detection";
+        var sort = (PriorityReportSortFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Privacy";
         var query = PriorityReportSearchBox.Text.Trim();
         var failedFindingIds = _priorityAuditSession.FailedRoutes.Select(key => key.Split('|')[0]).ToHashSet(StringComparer.OrdinalIgnoreCase);
         IEnumerable<Finding> source = _findings.Where(finding => ids.Contains(finding.Id) && !finding.Ignored);
@@ -1198,7 +1305,7 @@ public partial class MainWindow : Window
             var wasCanceled = _cts.IsCancellationRequested;
             _findings.AddRange(result.Findings.OrderByDescending(x => x.ExposureScore).ThenByDescending(x => x.SizeBytes));
             ApplyPersonalState();
-            _mediaFindings.AddRange(result.Findings.Where(x => (x.Category is "Images" or "Video") && File.Exists(x.Path)).OrderByDescending(PrivacyRadarRanking.Score).ThenByDescending(x => x.ModifiedAt ?? DateTime.MinValue));
+            _mediaFindings.AddRange(result.Findings.Where(x => x.Category is "Images" or "Video").OrderByDescending(PrivacyRadarRanking.Score).ThenByDescending(x => x.ModifiedAt ?? DateTime.MinValue));
             UpdatePeoplePresentation();
             _db.Save(Guid.NewGuid(), _scanStart, _findings);
             var completedAt = DateTime.UtcNow;
@@ -1220,6 +1327,7 @@ public partial class MainWindow : Window
     void ResetPriorityAuditForNewAudit()
     {
         _priorityWizardPreparationVersion++;
+        if (_priorityPreparationCts is not null) RequestCancellation(_priorityPreparationCts, showGlobalProgress: false);
         _priorityAuditStore.Delete();
         _priorityAuditSession = null;
         _auditIdentity = null;
@@ -2179,31 +2287,16 @@ public partial class MainWindow : Window
         return _peopleScanState.IsPaused && _peopleScanImages.Length > 0;
     }
 
-    async Task ApplyPersistedPeopleResultsAsync(IEnumerable<Finding> images)
+    void ApplyPeopleResults(IEnumerable<PeopleScanResult> results)
     {
-        var candidates = images.ToArray();
-        var restored = await Task.Run(() => candidates
-            .Select(f =>
-            {
-                var file = new FileInfo(f.Path);
-                return (Finding: f, Result: file.Exists ? _peopleRepository.FindReusable(f.Path, file.Length, file.LastWriteTime, _modelManager.Manifest.ModelVersion) : null);
-            })
-            .Where(x => x.Result is not null)
-            .ToArray());
-        await Dispatcher.InvokeAsync(() =>
+        var byPath = _findings.GroupBy(x => x.Path, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        foreach (var result in results)
         {
-            foreach (var item in restored)
-            {
-                item.Finding.MetadataJson = PeopleScanMetadata.InjectIntoMetadata(item.Finding.MetadataJson, item.Result!);
-                item.Finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(item.Finding.MetadataJson, DetectionEvidenceCalculator.People);
-            }
-            if (restored.Length > 0)
-            {
-                SaveCurrentSnapshot();
-                UpdatePeoplePresentation();
-                RefreshFindingsPage(true);
-            }
-        });
+            if (!byPath.TryGetValue(result.Path, out var finding)) continue;
+            finding.MetadataJson = PeopleScanMetadata.InjectIntoMetadata(finding.MetadataJson, result);
+            finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.People);
+        }
     }
 
     void UpdateModelControls()
@@ -2368,7 +2461,7 @@ public partial class MainWindow : Window
         var sourceImages = resuming
             ? _imageSafetyScanImages
             : _mediaFindings.Where(x => MediaScope.Matches(x.Category, NsfwImagesScopeCheckBox.IsChecked == true, NsfwVideosScopeCheckBox.IsChecked == true)).ToArray();
-        var images = await Task.Run(() => sourceImages.Where(x => File.Exists(x.Path)).ToArray());
+        var images = sourceImages;
         if (images.Length == 0)
         {
             guard.Dispose();
@@ -2389,6 +2482,7 @@ public partial class MainWindow : Window
         _imageSafetyScanCancelRequested = false;
         _imageSafetyScanCts = new CancellationTokenSource(); UpdateModelControls();
         NsfwScanProgress.Visibility = Visibility.Visible; NsfwScanProgressText.Visibility = Visibility.Collapsed; NsfwScanProgress.IsIndeterminate = false; NsfwScanProgress.Value = 0; NsfwScanErrorText.Visibility = Visibility.Collapsed;
+        var completedThisRun = new ConcurrentQueue<ImageSafetyScanResult>();
         try
         {
             var progress = new Progress<ImageSafetyScanProgress>(p =>
@@ -2397,14 +2491,8 @@ public partial class MainWindow : Window
                 NsfwScanStageText.Text = string.Format(LocalizationService.Get("NsfwCompactProgress"), p.Completed, p.Total, p.Completed, p.Nsfw, p.Nsfl, p.Errors);
                 NsfwScanProgressText.Text = "";
             });
-            var results = await new ImageSafetyScanner(_imageSafetyModelManager, _imageSafetyRepository).ScanAsync(images, false, progress, _imageSafetyScanCts.Token);
-            foreach (var result in results)
-            {
-                var finding = _findings.FirstOrDefault(x => x.Path.Equals(result.Path, StringComparison.OrdinalIgnoreCase));
-                if (finding is null || result.Status != ImageSafetyScanStatus.Completed) continue;
-                finding.MetadataJson = ImageSafetyMetadata.InjectIntoMetadata(finding.MetadataJson, result);
-                finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.ImageSafety);
-            }
+            var results = await new ImageSafetyScanner(_imageSafetyModelManager, _imageSafetyRepository).ScanAsync(images, false, progress, _imageSafetyScanCts.Token, completedThisRun.Enqueue);
+            ApplyImageSafetyResults(results);
             SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
             var nsfw = results.Count(x => x.Status == ImageSafetyScanStatus.Completed && x.PrimaryClass == ImageSafetyClass.NSFW);
             var nsfl = results.Count(x => x.Status == ImageSafetyScanStatus.Completed && x.PrimaryClass == ImageSafetyClass.NSFL);
@@ -2415,7 +2503,8 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException)
         {
-            await ApplyPersistedImageSafetyResultsAsync(images);
+            ApplyImageSafetyResults(completedThisRun);
+            SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
             if (_imageSafetyScanCancelRequested) _imageSafetyScanState.Cancel(); else _imageSafetyScanState.Pause();
             var key = _imageSafetyScanState.IsPaused ? "NsfwScanPaused" : "NsfwScanCanceled";
             NsfwScanStageText.Text = LocalizationService.Get(key); StatusText.Text = NsfwScanStageText.Text;
@@ -2429,16 +2518,21 @@ public partial class MainWindow : Window
         if (IsInitialized) UpdateModelControls();
     }
 
+    void ApplyImageSafetyResults(IEnumerable<ImageSafetyScanResult> results)
+    {
+        var byPath = _findings.GroupBy(x => x.Path, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        foreach (var result in results)
+        {
+            if (result.Status != ImageSafetyScanStatus.Completed || !byPath.TryGetValue(result.Path, out var finding)) continue;
+            finding.MetadataJson = ImageSafetyMetadata.InjectIntoMetadata(finding.MetadataJson, result);
+            finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.ImageSafety);
+        }
+    }
+
     void PeopleScope_Changed(object sender, RoutedEventArgs e)
     {
         if (IsInitialized) UpdateModelControls();
-    }
-
-    async Task ApplyPersistedImageSafetyResultsAsync(IEnumerable<Finding> images)
-    {
-        var restored = await Task.Run(() => images.Select(f => (Finding: f, Result: _imageSafetyRepository.Get(f.Path))).Where(x => x.Result?.Status == ImageSafetyScanStatus.Completed).ToArray());
-        foreach (var item in restored) { item.Finding.MetadataJson = ImageSafetyMetadata.InjectIntoMetadata(item.Finding.MetadataJson, item.Result!); item.Finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(item.Finding.MetadataJson, DetectionEvidenceCalculator.ImageSafety); }
-        SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
     }
 
     void NsfwScanPause_Click(object sender, RoutedEventArgs e)
@@ -2490,7 +2584,7 @@ public partial class MainWindow : Window
         var sourceImages = resuming
             ? _peopleScanImages
             : _mediaFindings.Where(x => MediaScope.Matches(x.Category, PeopleImagesScopeCheckBox.IsChecked == true, PeopleVideosScopeCheckBox.IsChecked == true)).ToArray();
-        var images = await Task.Run(() => sourceImages.Where(x => File.Exists(x.Path)).ToArray());
+        var images = sourceImages;
         if (images.Length == 0)
         {
             guard.Dispose();
@@ -2517,6 +2611,7 @@ public partial class MainWindow : Window
         _peopleScanCts = new CancellationTokenSource();
         UpdateModelControls();
         ResetPeopleOperationMessage(); PeopleScanProgressText.Visibility = Visibility.Collapsed; PeopleScanStageText.Visibility = Visibility.Visible; PeopleScanStatsText.Text = ""; PeopleModelProgress.Visibility = Visibility.Visible; PeopleModelProgress.IsIndeterminate = true; PeopleScanStageText.Text = LocalizationService.Get("PeopleScanCheckingModel");
+        var completedThisRun = new ConcurrentQueue<PeopleScanResult>();
         try
         {
             PeopleScanStageText.Text = LocalizationService.Get("PeopleScanRunningStage"); PeopleModelProgress.IsIndeterminate = true;
@@ -2526,16 +2621,8 @@ public partial class MainWindow : Window
                 PeopleScanStageText.Visibility = Visibility.Collapsed; PeopleScanStatsText.Text = string.Format(LocalizationService.Get("PeopleScanCompactProgress"), p.Completed, p.Total, p.Completed, p.People, p.Completed - p.People - p.Errors, p.Errors); PeopleModelProgress.IsIndeterminate = false; PeopleModelProgress.Value = p.Total == 0 ? 0 : p.Completed / (double)p.Total; PeopleScanProgressText.Text = "";
                 CountersText.Text = $"{LocalizationService.Get("PeopleDetected")}: {p.People:N0}   {LocalizationService.Get("PeopleScanErrors")}: {p.Errors:N0}";
             });
-            var results = await new PeopleScanner(_modelManager, _peopleRepository).ScanAsync(images, progress, _peopleScanCts.Token);
-            foreach (var result in results)
-            {
-                var finding = _findings.FirstOrDefault(x => x.Path.Equals(result.Path, StringComparison.OrdinalIgnoreCase));
-                if (finding is not null)
-                {
-                    finding.MetadataJson = PeopleScanMetadata.InjectIntoMetadata(finding.MetadataJson, result);
-                    finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.People);
-                }
-            }
+            var results = await new PeopleScanner(_modelManager, _peopleRepository).ScanAsync(images, progress, _peopleScanCts.Token, completedThisRun.Enqueue);
+            ApplyPeopleResults(results);
             await RefreshPersonalScoresAfterDeepScanAsync(images, "PeopleScanCompleted");
             SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
             var people = results.Count(x => x.Status == PeopleScanStatus.Completed && x.PeopleDetected);
@@ -2553,7 +2640,8 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException)
         {
-            await ApplyPersistedPeopleResultsAsync(images);
+            ApplyPeopleResults(completedThisRun);
+            SaveCurrentSnapshot(); UpdatePeoplePresentation(); RefreshFindingsPage(true);
             if (_peopleScanCancelRequested) _peopleScanState.Cancel(); else _peopleScanState.Pause();
             PeopleScanStageText.Visibility = Visibility.Visible;
             PeopleScanStageText.Text = LocalizationService.Get(_peopleScanState.IsPaused ? "PeopleScanPaused" : "PeopleScanCanceled");
@@ -2734,7 +2822,7 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("PiiScanning"));
         if (guard is null) return;
 
-        var candidates = _findings.Where(x => !x.Ignored && TextExtractor.IsSupported(x.Path) && File.Exists(x.Path)).ToArray();
+        var candidates = _findings.Where(x => !x.Ignored && TextExtractor.IsSupported(x.Path)).ToArray();
         if (candidates.Length == 0)
         {
             guard.Dispose();
@@ -2826,7 +2914,7 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("SecretsScanning"));
         if (guard is null) return;
 
-        var candidates = _findings.Where(x => !x.Ignored && TextExtractor.IsSupported(x.Path) && File.Exists(x.Path)).ToArray();
+        var candidates = _findings.Where(x => !x.Ignored && TextExtractor.IsSupported(x.Path)).ToArray();
         if (candidates.Length == 0)
         {
             guard.Dispose();
@@ -2915,7 +3003,7 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("ConfigsScanning"));
         if (guard is null) return;
 
-        var candidates = _findings.Where(x => !x.Ignored && File.Exists(x.Path)).ToArray();
+        var candidates = _findings.Where(x => !x.Ignored).ToArray();
         if (candidates.Length == 0)
         {
             guard.Dispose();
@@ -3006,7 +3094,7 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("IdentityScanning"));
         if (guard is null) return;
 
-        var candidates = _findings.Where(x => !x.Ignored && File.Exists(x.Path)).ToArray();
+        var candidates = _findings.Where(x => !x.Ignored).ToArray();
         if (candidates.Length == 0)
         {
             guard.Dispose();
@@ -3100,7 +3188,7 @@ public partial class MainWindow : Window
         var guard = TryAcquireHeavyTask(LocalizationService.Get("ArchivesScanning"));
         if (guard is null) return;
 
-        var candidates = _findings.Where(x => !x.Ignored && ArchiveInspector.IsSupportedArchive(x.Path) && File.Exists(x.Path)).ToArray();
+        var candidates = _findings.Where(x => !x.Ignored && ArchiveInspector.IsSupportedArchive(x.Path)).ToArray();
         if (candidates.Length == 0)
         {
             guard.Dispose();
@@ -3201,7 +3289,7 @@ public partial class MainWindow : Window
         StatusText.Text = LocalizationService.Get("MediaScanPreparing");
         await Task.Yield();
         var sourceImages = _documentScanImages.Length > 0 ? _documentScanImages : _mediaFindings.ToArray();
-        var images = await Task.Run(() => sourceImages.Where(x => File.Exists(x.Path)).ToArray());
+        var images = sourceImages;
         if (images.Length == 0)
         {
             guard.Dispose();
@@ -3368,7 +3456,7 @@ public partial class MainWindow : Window
         var token = _exifScanCts.Token;
         await Task.Yield();
         Finding[] candidates;
-        try { candidates = await Task.Run(() => _findings.Where(x => !x.Ignored && File.Exists(x.Path)).ToArray(), token); }
+        try { candidates = await Task.Run(() => _findings.Where(x => !x.Ignored).ToArray(), token); }
         catch (OperationCanceledException) { guard.Dispose(); _exifScanCts.Dispose(); _exifScanCts = null; ExifScanButton.IsEnabled = true; ExifScanCancelButton.IsEnabled = false; return; }
         if (candidates.Length == 0)
         {
@@ -4425,7 +4513,7 @@ public partial class MainWindow : Window
     void Exclude_Click(object s, RoutedEventArgs e) { if (_selected is null) return; _db.AddExclusion(_selected.Path); _selected.Ignored = true; SaveCurrentSnapshot(); RefreshFindingsPage(); RefreshPriorityReport(); StatusText.Text = LocalizationService.Get("Excluded"); }
     void DeleteDb_Click(object s, RoutedEventArgs e) { if (System.Windows.MessageBox.Show(LocalizationService.Get("DeletePrompt"), "NotBad Privacy Detector Agent", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes) { _db.DeleteDatabase(); _db.DeleteProvenance(); _peopleRepository.DeleteAll(); StatusText.Text = LocalizationService.Get("DatabaseDeleted"); } }
 
-    public bool CanRunCleanup => _activeHeavyTaskName is null && _activeMediaTaskCount == 0 && _cts is null && _personalTrainingCts is null &&
+    public bool CanRunCleanup => _activeHeavyTaskName is null && _activeMediaTaskCount == 0 && _cts is null && _personalTrainingCts is null && _priorityPreparationCts is null &&
         _textScanCts is null && _peopleScanCts is null && _documentScanCts is null && _similarCts is null && _exifScanCts is null && _priorityAuditCts is null;
 
     public void ClearCachesAndAuditResults()
@@ -4467,6 +4555,7 @@ public partial class MainWindow : Window
         _pageLoadCts?.Cancel();
         _mediaFilterCts?.Cancel();
         _restoreCts?.Cancel();
+        _priorityPreparationCts?.Cancel();
         _priorityAuditCts?.Cancel();
     }
 }
