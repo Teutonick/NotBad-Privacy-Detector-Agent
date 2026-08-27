@@ -52,6 +52,16 @@ public sealed class CredentialConfigResult
 public static class CredentialConfigDetector
 {
     static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(400);
+    static readonly HashSet<string> SourceConfigExtensions = new(StringComparer.OrdinalIgnoreCase) { ".py", ".js", ".jsx", ".ts", ".tsx", ".cs", ".java", ".go", ".rs", ".rb", ".php" };
+    static readonly Regex EnvironmentCallRegex = new(@"^(?:(?:os\.)?getenv|os\.environ\.(?:get|setdefault)|env)\(\s*[^,()]+\s*(?:,\s*(?<fallback>.+))?\)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout);
+    static readonly Regex EnvironmentIndexRegex = new(@"^(?:os\.environ\[\s*[^\]]+\s*\]|process\.env\.[A-Za-z_][A-Za-z0-9_]*|Environment\.GetEnvironmentVariable\(\s*[^,()]+\s*\))$", RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout);
+    static readonly Regex EnvironmentPlaceholderRegex = new(@"^(?:\$\{?(?:[A-Z_][A-Z0-9_]*|[a-z_][a-z0-9_]*)\}?|%(?:[A-Z_][A-Z0-9_]*|[a-z_][a-z0-9_]*)%|%env\([^\r\n()]+\)%|\{\{\s*(?:[A-Z_][A-Z0-9_]*|[a-z_][a-z0-9_]*)\s*\}\}|<(?:[A-Z_][A-Z0-9_.-]*|[a-z_][a-z0-9_.-]*)>)$", RegexOptions.Compiled, RegexTimeout);
+
+    public static bool IsGenericSourceConfig(string filePath)
+    {
+        var name = Path.GetFileName(filePath);
+        return name.StartsWith("config.", StringComparison.OrdinalIgnoreCase) && SourceConfigExtensions.Contains(Path.GetExtension(name));
+    }
 
     public static CredentialConfigResult Analyze(string filePath, string? textContent = null)
     {
@@ -220,7 +230,7 @@ public static class CredentialConfigDetector
                 if (keyMatch.Success)
                 {
                     var key = keyMatch.Groups["key"].Value;
-                    if (IsSensitiveKey(key))
+                    if (IsSensitiveKey(key) && IsExposedValue(keyMatch.Groups["val"].Value))
                     {
                         result.IsCredentialConfig = true;
                         if (!result.ExposedParameters.Contains(key))
@@ -277,19 +287,88 @@ public static class CredentialConfigDetector
 
     static bool IsSensitiveKey(string key)
     {
-        return key.Contains("PASS", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("SECRET", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("TOKEN", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("AUTH", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("KEY", StringComparison.OrdinalIgnoreCase) && !key.Contains("KEYBOARD", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("CREDENTIAL", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("PRIVATE", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("CERTIFICATE", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("BEARER", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("APIKEY", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("CLIENT_SECRET", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("SIGNING_KEY", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("DB_NAME", StringComparison.OrdinalIgnoreCase) ||
-               key.Contains("DB_USER", StringComparison.OrdinalIgnoreCase);
+        var normalized = SplitIdentifierWords(key).Replace('-', '_').Replace('.', '_').Replace(':', '_');
+        var parts = normalized.Split('_', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Any(part => part.Equals("token", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("secret", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("secrets", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("password", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("passwd", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("pwd", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("credential", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("credentials", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("apikey", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("auth", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("authorization", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("bearer", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("private", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("certificate", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("passphrase", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("passcode", StringComparison.OrdinalIgnoreCase) ||
+                                 part.Equals("key", StringComparison.OrdinalIgnoreCase));
+    }
+
+    static string SplitIdentifierWords(string key)
+    {
+        if (key.Length < 2) return key;
+        var output = new System.Text.StringBuilder(key.Length + 4);
+        for (var i = 0; i < key.Length; i++)
+        {
+            var current = key[i];
+            if (i > 0 && char.IsUpper(current))
+            {
+                var previous = key[i - 1];
+                var nextIsLower = i + 1 < key.Length && char.IsLower(key[i + 1]);
+                if (char.IsLower(previous) || char.IsDigit(previous) || char.IsUpper(previous) && nextIsLower) output.Append('_');
+            }
+            output.Append(current);
+        }
+        return output.ToString();
+    }
+
+    static bool IsExposedValue(string rawValue)
+    {
+        var value = rawValue.Trim();
+        if (value.Length == 0) return false;
+
+        // A complete environment lookup is a reference to a value held elsewhere.
+        // A concrete fallback is still stored in this file and remains reportable.
+        var lower = value.ToLowerInvariant();
+        try
+        {
+            var environmentCall = EnvironmentCallRegex.Match(value);
+            if (environmentCall.Success)
+            {
+                var fallback = environmentCall.Groups["fallback"];
+                return fallback.Success && IsExposedValue(StripNamedArgument(fallback.Value));
+            }
+            if (EnvironmentIndexRegex.IsMatch(value)) return false;
+        }
+        catch (RegexMatchTimeoutException) { return true; }
+
+        if (lower is "none" or "null" or "nil" or "true" or "false" or "0" or "1" or "{}" or "[]" or "..." ||
+            lower is "default" or "undefined") return false;
+
+        var unquoted = value.Trim('"', '\'').Trim();
+        if (unquoted.Length == 0) return false;
+        if (unquoted.ToLowerInvariant() is "none" or "null" or "nil" or "true" or "false" or "0" or "1") return false;
+        try { if (EnvironmentPlaceholderRegex.IsMatch(unquoted)) return false; }
+        catch (RegexMatchTimeoutException) { return true; }
+        var placeholder = unquoted.ToLowerInvariant();
+        if (placeholder is "changeme" or "change_me" or "change-me" or "replace_me" or "replace-me" or "example" or "dummy" or "todo" ||
+            placeholder.StartsWith("your_", StringComparison.Ordinal) ||
+            placeholder.StartsWith("your-", StringComparison.Ordinal) ||
+            placeholder.StartsWith("replace_me_", StringComparison.Ordinal) ||
+            placeholder.StartsWith("replace-me-", StringComparison.Ordinal)) return false;
+        return true;
+    }
+
+    static string StripNamedArgument(string value)
+    {
+        var trimmed = value.Trim();
+        var equals = trimmed.IndexOf('=');
+        if (equals <= 0) return trimmed;
+        var name = trimmed[..equals].Trim();
+        return name.All(ch => char.IsLetterOrDigit(ch) || ch == '_') ? trimmed[(equals + 1)..].Trim() : trimmed;
     }
 }

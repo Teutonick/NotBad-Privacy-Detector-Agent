@@ -3034,6 +3034,11 @@ public partial class MainWindow : Window
                         var scan = CredentialConfigDetector.Analyze(finding.Path);
                         finding.MetadataJson = CredentialConfigResult.InjectIntoMetadata(finding.MetadataJson, scan);
                         finding.MetadataJson = DetectionEvidenceCalculator.MarkCompleted(finding.MetadataJson, DetectionEvidenceCalculator.Configs);
+                        if (!scan.IsCredentialConfig && finding.ScannerId.Equals("filesystem", StringComparison.OrdinalIgnoreCase) && finding.Category.Equals("Potential secrets", StringComparison.OrdinalIgnoreCase) && CredentialConfigDetector.IsGenericSourceConfig(finding.Path))
+                        {
+                            finding.Category = "Other";
+                            finding.Subcategory = "File";
+                        }
                         if (scan.IsCredentialConfig)
                         {
                             Interlocked.Increment(ref foundCount);

@@ -14,8 +14,8 @@ public sealed class Finding : System.ComponentModel.INotifyPropertyChanged
     int _applicationHistoryInteractionCount;
     public Guid Id { get; init; } = Guid.NewGuid();
     public string ScannerId { get; init; } = "";
-    public string Category { get; init; } = "Other";
-    public string Subcategory { get; init; } = "";
+    public string Category { get; set; } = "Other";
+    public string Subcategory { get; set; } = "";
     public string Path { get; init; } = "";
     public string DisplayName { get; init; } = "";
     public bool IsDirectory { get; init; }

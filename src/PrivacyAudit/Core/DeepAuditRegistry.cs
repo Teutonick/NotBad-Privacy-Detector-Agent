@@ -96,6 +96,11 @@ sealed class ConfigDeepScanner() : DeepAuditScannerBase(DetectionEvidenceCalcula
         token.ThrowIfCancellationRequested();
         var result = CredentialConfigDetector.Analyze(finding.Path);
         finding.MetadataJson = CredentialConfigResult.InjectIntoMetadata(finding.MetadataJson, result);
+        if (!result.IsCredentialConfig && finding.ScannerId.Equals("filesystem", StringComparison.OrdinalIgnoreCase) && finding.Category.Equals("Potential secrets", StringComparison.OrdinalIgnoreCase) && CredentialConfigDetector.IsGenericSourceConfig(finding.Path))
+        {
+            finding.Category = "Other";
+            finding.Subcategory = "File";
+        }
         return result.IsCredentialConfig;
     }, token);
 }

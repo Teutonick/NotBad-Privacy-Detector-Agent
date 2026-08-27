@@ -42,7 +42,29 @@ public sealed class FilesystemScanner : IPrivacyScanner
                             var fi = new FileInfo(path); files++; bytes += fi.Length;
                             var category = Classifier.File(path); var name = fi.Name;
                             var isSecret = SecretExt.Contains(fi.Extension) || SecretNames.Any(x => name.Equals(x, StringComparison.OrdinalIgnoreCase) || name.StartsWith(x, StringComparison.OrdinalIgnoreCase));
-                            var isInteresting = isSecret || category != "Other" || fi.Length >= context.LargeFileThreshold;
+                            var isGenericSourceConfig = isSecret && CredentialConfigDetector.IsGenericSourceConfig(path);
+                            // A source module named config.* is only a candidate after a bounded,
+                            // content-aware check. This avoids treating environment lookups and
+                            // rate-limit flags as exposed credentials while retaining hard-coded secrets.
+                            if (isGenericSourceConfig)
+                            {
+                                try
+                                {
+                                    // Large or unreadable candidates remain visible: failure to perform
+                                    // the refinement must never suppress the original filename signal.
+                                    if (fi.Length <= 1024 * 1024)
+                                    {
+                                        var text = TextExtractor.ExtractFromPlainText(path);
+                                        isSecret = CredentialConfigDetector.Analyze(path, text).IsCredentialConfig ||
+                                                   (!string.IsNullOrWhiteSpace(text) && SecretDetector.Scan(text, path).TotalMatches > 0);
+                                    }
+                                }
+                                catch (Exception ex) { CrashLogger.LogException(ex, $"Filesystem config classification: {path}"); isSecret = true; }
+                            }
+                            // A generic config source stays in the audit even when its current
+                            // content has no secret signal. Deep scanners may change metadata,
+                            // but never remove an audited object from the result set.
+                            var isInteresting = isSecret || isGenericSourceConfig || category != "Other" || fi.Length >= context.LargeFileThreshold;
                             if (isInteresting)
                             {
                                 var (score, reasons) = Exposure(path);
